@@ -1,13 +1,13 @@
-# Active Context: Parkshare
+# Active Context
 
-## Current Focus
-Datetime-Handling auf lokale Zeitzone umgestellt, damit der heutige Tag korrekt als buchbar erkannt wird.
+## Aktueller Fokus
+Teams-Verwaltung Refactor – **abgeschlossen**
 
-## Recent Changes
-- [x] `lib/dates.js`: `formatDateISO()` von UTC (`toISOString`) auf lokale Zeitzone umgestellt
-- [x] `lib/supabase.js`: Alle `toISOString().split('T')[0]` durch `getToday()` ersetzt
-- [x] `components/ParkingOverview.jsx`: `changeDate()` nutzt jetzt `formatDateISO()`
+## Letzte Änderungen
+- `teams`-Tabelle in Supabase erstellt
+- `profiles.team_id` (FK) und `parking_spots.team_id` (FK) migriert
+- `lib/supabase.js`: Teams-CRUD, assignTeamToSpot, unassignTeamFromSpot, getAvailableSpotsForDate und getDailyOverview aktualisiert
+- `components/AdminPanel.jsx`: komplett neu geschrieben – TeamsTab (neu), SpotsTab Mitarbeiter+Team-Dropdowns, UsersTab Team-Dropdown (team_id)
 
-## Next Steps
-- [ ] Testen: OwnerCalendar → heutiger Tag klickbar und freigebebar
-- [ ] Testen: FlexibleBooking → freigegebener Platz heute buchbar
+## Build-Status
+✓ `npm run build` erfolgreich (12/12 Seiten)
