@@ -527,9 +527,10 @@ function UsersTab({ profiles, teams, onRefresh }) {
           const isBlocked = profile.is_blocked
           const isLoading = actionLoading === profile.id
           const currentTeamId = profile.team_id || ""
+          const isEditingThis = editingUser?.id === profile.id
 
           return (
-            <div key={profile.id} className={`flex flex-col p-6 bg-white rounded-3xl border-2 transition-all shadow-sm opacity-0 animate-slide-up ${isBlocked ? "border-red-200 bg-red-50/30" : editingUser?.id === profile.id ? "border-orendt-black" : "border-orendt-gray-100 hover:border-orendt-black"}`} style={{ animationDelay: `${i * 40}ms`, animationFillMode: "forwards" }}>
+            <div key={profile.id} className={`flex flex-col p-6 bg-white rounded-3xl border-2 transition-all shadow-sm opacity-0 animate-slide-up ${isBlocked ? "border-red-200 bg-red-50/30" : isEditingThis ? "border-orendt-black" : "border-orendt-gray-100 hover:border-orendt-black"}`} style={{ animationDelay: `${i * 40}ms`, animationFillMode: "forwards" }}>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-5 flex-shrink-0">
                   <div className={`w-14 h-14 rounded-[1.25rem] flex items-center justify-center ${isBlocked ? "bg-red-100 border border-red-200" : "bg-orendt-accent/10 border border-orendt-accent/20"}`}>

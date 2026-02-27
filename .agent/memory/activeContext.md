@@ -1,13 +1,13 @@
 # Active Context
 
 ## Aktueller Fokus
-Teams-Verwaltung Refactor – **abgeschlossen**
+Datenschutzseite & Registrierungs-Checkbox – **abgeschlossen**
 
 ## Letzte Änderungen
-- `teams`-Tabelle in Supabase erstellt
-- `profiles.team_id` (FK) und `parking_spots.team_id` (FK) migriert
-- `lib/supabase.js`: Teams-CRUD, assignTeamToSpot, unassignTeamFromSpot, getAvailableSpotsForDate und getDailyOverview aktualisiert
-- `components/AdminPanel.jsx`: komplett neu geschrieben – TeamsTab (neu), SpotsTab Mitarbeiter+Team-Dropdowns, UsersTab Team-Dropdown (team_id)
+- `app/datenschutz/page.js`: Neue DSGVO-konforme Datenschutzseite – Sektionen zu Vercel, Supabase Auth, Supabase DB, Differenzierung Owner/Flexible, expliziter Kein-Kennzeichen-Hinweis
+- `app/login/page.js`: Datenschutz-Pflichtcheckbox im Sign-Up-Formular – Submit-Button disabled ohne Akzeptanz; Link zur `/datenschutz`-Seite
+- `components/Footer.jsx`: Datenschutz-Link neben Impressum hinzugefügt
 
 ## Build-Status
-✓ `npm run build` erfolgreich (12/12 Seiten)
+✓ `npm run dev` läuft, alle Seiten erreichbar
+

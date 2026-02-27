@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 
 export default function Footer() {
     return (
@@ -20,6 +21,15 @@ export default function Footer() {
             >
                 Impressum
             </a>
+
+            <div className="hidden md:block w-px h-3 bg-orendt-gray-200" />
+
+            <Link
+                href="/datenschutz"
+                className="font-display text-[10px] font-bold tracking-[0.15em] uppercase text-orendt-gray-400 hover:text-orendt-black transition-colors"
+            >
+                Datenschutz
+            </Link>
         </footer>
     );
 }

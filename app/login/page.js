@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { useAuth } from "@/lib/hooks"
 import Footer from "@/components/Footer"
 import { signIn, signUp, signOut, getCurrentUser, updatePassword, markPasswordChanged } from "@/lib/supabase"
@@ -13,6 +14,7 @@ export default function LoginPage() {
   const [fullName, setFullName] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [privacyAccepted, setPrivacyAccepted] = useState(false)
 
   // Password change modal state
   const [showPasswordChange, setShowPasswordChange] = useState(false)
@@ -244,6 +246,46 @@ export default function LoginPage() {
                 />
               </div>
 
+              {isSignUp && (
+                <div className="animate-fade-in">
+                  <label className="flex items-start gap-3 cursor-pointer group">
+                    <div className="relative mt-0.5 shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={privacyAccepted}
+                        onChange={(e) => setPrivacyAccepted(e.target.checked)}
+                        required
+                        className="sr-only"
+                      />
+                      <div
+                        onClick={() => setPrivacyAccepted(!privacyAccepted)}
+                        className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all cursor-pointer ${privacyAccepted
+                            ? "bg-orendt-black border-orendt-black"
+                            : "bg-white border-orendt-gray-200 group-hover:border-orendt-gray-400"
+                          }`}
+                      >
+                        {privacyAccepted && (
+                          <svg className="w-3 h-3 text-orendt-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+                    </div>
+                    <span className="font-body text-xs text-orendt-gray-400 leading-relaxed">
+                      Ich habe die{" "}
+                      <Link
+                        href="/datenschutz"
+                        target="_blank"
+                        className="text-orendt-black underline underline-offset-2 hover:opacity-70 transition-opacity font-semibold"
+                      >
+                        Datenschutzerklärung
+                      </Link>{" "}
+                      gelesen und stimme ihr zu.
+                    </span>
+                  </label>
+                </div>
+              )}
+
               {error && !showPasswordChange && (
                 <div className="px-5 py-4 bg-red-500/5 border border-red-500/10 rounded-2xl text-red-500 text-sm font-body animate-shake">
                   {error}
@@ -252,7 +294,7 @@ export default function LoginPage() {
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || (isSignUp && !privacyAccepted)}
                 className="w-full py-4 sm:py-5 bg-orendt-black text-orendt-accent font-display font-bold text-xs uppercase tracking-[0.25em] rounded-2xl hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 shadow-[0_12px_24px_-8px_rgba(0,0,0,0.15)] mt-4"
               >
                 {loading ? (
