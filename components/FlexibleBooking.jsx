@@ -104,31 +104,33 @@ export default function FlexibleBooking({ user }) {
             Dein Parkplatz <span className="font-bold text-orendt-black">{myTodayReservation.spot?.label}</span> im Bereich <span className="font-bold text-orendt-black">{myTodayReservation.spot?.zone}</span> ist heute für dich reserviert.
           </p>
 
-          {keyBoxPin ? (
-            <div className="mt-6 p-5 bg-orendt-gray-50 border-2 border-orendt-accent/30 rounded-2xl inline-block">
-              <p className="text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-[0.2em] mb-2">
-                🔑 Schlüsselkasten PIN
-              </p>
-              <p className="font-mono text-3xl font-bold text-orendt-black tracking-[0.4em]">
-                {keyBoxPin}
-              </p>
-            </div>
-          ) : myTodayReservation.spot?.spot_type === "team" ? (
-            <div className="mt-6 p-5 bg-emerald-50 border-2 border-emerald-200 rounded-2xl inline-block">
-              <p className="text-[10px] font-display font-bold text-emerald-600 uppercase tracking-[0.2em] mb-1">
-                ✨ Team-Parkplatz
-              </p>
-              <p className="text-sm font-display font-bold text-emerald-700">
-                Kein Schlüssel benötigt
-              </p>
-            </div>
-          ) : null}
+          <div className="flex flex-col items-center gap-4 mt-6">
+            {keyBoxPin ? (
+              <div className="p-5 bg-orendt-gray-50 border-2 border-orendt-accent/30 rounded-2xl">
+                <p className="text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-[0.2em] mb-2">
+                  🔑 Schlüsselkasten PIN
+                </p>
+                <p className="font-mono text-3xl font-bold text-orendt-black tracking-[0.4em]">
+                  {keyBoxPin}
+                </p>
+              </div>
+            ) : myTodayReservation.spot?.spot_type === "team" ? (
+              <div className="p-5 bg-emerald-50 border-2 border-emerald-200 rounded-2xl">
+                <p className="text-[10px] font-display font-bold text-emerald-600 uppercase tracking-[0.2em] mb-1">
+                  ✨ Team-Parkplatz
+                </p>
+                <p className="text-sm font-display font-bold text-emerald-700">
+                  Kein Schlüssel benötigt
+                </p>
+              </div>
+            ) : null}
 
-          <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-orendt-gray-50 border border-orendt-gray-200 rounded-xl">
-            <div className="w-2 h-2 rounded-full bg-orendt-accent animate-pulse" />
-            <span className="text-[10px] font-display font-bold text-orendt-gray-500 uppercase tracking-wider">
-              Gültig bis Mitternacht
-            </span>
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-orendt-gray-50 border border-orendt-gray-200 rounded-xl">
+              <div className="w-2 h-2 rounded-full bg-orendt-accent animate-pulse" />
+              <span className="text-[10px] font-display font-bold text-orendt-gray-500 uppercase tracking-wider">
+                Gültig bis Mitternacht
+              </span>
+            </div>
           </div>
         </div>
       </div>
