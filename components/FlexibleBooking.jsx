@@ -33,7 +33,7 @@ export default function FlexibleBooking({ user }) {
 
     if (!todayRes) {
       // No booking yet → find first available spot (lowest sort_order)
-      const { data: available } = await getAvailableSpotsForDate(today, user.team_id || null)
+      const { data: available } = await getAvailableSpotsForDate(today)
       // Sort by spot sort_order (lowest first), then take the first one
       const sorted = (available || []).sort(
         (a, b) => (a.spot?.sort_order ?? 999) - (b.spot?.sort_order ?? 999)
@@ -55,8 +55,7 @@ export default function FlexibleBooking({ user }) {
     setBooking(true)
     const { error } = await reserveSpot(
       firstAvailableSpot.spot_id,
-      // Team spots have no availability entry – pass null
-      firstAvailableSpot.is_team_spot ? null : firstAvailableSpot.id,
+      firstAvailableSpot.id,
       user.id,
       today
     )
@@ -114,15 +113,6 @@ export default function FlexibleBooking({ user }) {
                   {keyBoxPin}
                 </p>
               </div>
-            ) : myTodayReservation.spot?.spot_type === "team" ? (
-              <div className="p-5 bg-emerald-50 border-2 border-emerald-200 rounded-2xl">
-                <p className="text-[10px] font-display font-bold text-emerald-600 uppercase tracking-[0.2em] mb-1">
-                  ✨ Team-Parkplatz
-                </p>
-                <p className="text-sm font-display font-bold text-emerald-700">
-                  Kein Schlüssel benötigt
-                </p>
-              </div>
             ) : null}
 
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-orendt-gray-50 border border-orendt-gray-200 rounded-xl">
@@ -158,9 +148,7 @@ export default function FlexibleBooking({ user }) {
 
           <p className="text-sm text-orendt-gray-500 font-body max-w-sm mx-auto leading-relaxed mb-2">
             Bereich <span className="font-bold text-orendt-black">{firstAvailableSpot.spot?.zone}</span>
-            {firstAvailableSpot.is_team_spot ? (
-              <> · <span className="text-emerald-600 font-bold">Team-Platz – Kein Schlüssel benötigt</span></>
-            ) : (
+            {firstAvailableSpot.released_by_user && (
               <> · Freigegeben von <span className="font-bold text-orendt-black">{firstAvailableSpot.released_by_user?.full_name?.split(" ")[0]}</span></>
             )}
           </p>

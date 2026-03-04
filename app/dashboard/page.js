@@ -7,20 +7,20 @@ import Header from "@/components/Header"
 import OwnerCalendar from "@/components/OwnerCalendar"
 import FlexibleBooking from "@/components/FlexibleBooking"
 import Footer from "@/components/Footer"
-import { getMyAssignment } from "@/lib/supabase"
+import { getMyAssignments } from "@/lib/supabase"
 
 export default function DashboardPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
-  const [assignment, setAssignment] = useState(null)
+  const [assignments, setAssignments] = useState(null)
   const [loadingAssignment, setLoadingAssignment] = useState(true)
 
   useEffect(() => {
     if (!loading && !user) {
       router.replace("/login")
     } else if (user) {
-      getMyAssignment(user.id).then(({ data }) => {
-        setAssignment(data)
+      getMyAssignments(user.id).then(({ data }) => {
+        setAssignments(data || [])
         setLoadingAssignment(false)
       })
     }
@@ -34,8 +34,9 @@ export default function DashboardPage() {
     )
   }
 
-  // Admin or Owner with assigned spot → show calendar
-  const showCalendar = (user.role === "owner" || user.role === "admin") && assignment
+  // Admin or Owner with assigned spot(s) → show calendar
+  const hasAssignment = assignments && assignments.length > 0
+  const showCalendar = (user.role === "owner" || user.role === "admin") && hasAssignment
 
   return (
     <div className="min-h-screen bg-orendt-gray-50 flex flex-col">
@@ -67,7 +68,7 @@ export default function DashboardPage() {
         )}
 
         {/* No spot assigned (owner or admin without assignment) */}
-        {(user.role === "owner" || user.role === "admin") && !assignment && (
+        {(user.role === "owner" || user.role === "admin") && !hasAssignment && (
           <div className="max-w-3xl mx-auto">
             <div className="p-8 bg-white rounded-3xl border border-orendt-gray-200 text-center">
               <p className="text-orendt-gray-500 font-body">Kein Parkplatz zugeordnet. Bitte Administrator kontaktieren.</p>

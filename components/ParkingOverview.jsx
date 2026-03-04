@@ -221,9 +221,11 @@ function SpotCard({ spot, canBook, onBook, index }) {
         <p className="text-xs font-body font-semibold text-orendt-black truncate mt-0.5">
           {spot.status === "reserved" && spot.reservedBy
             ? spot.reservedBy.full_name
-            : spot.owner
-              ? spot.owner.full_name
-              : "Nicht zugewiesen"}
+            : spot.owners && spot.owners.length > 0
+              ? spot.owners.map((o) => o.full_name).join(", ")
+              : spot.owner
+                ? spot.owner.full_name
+                : "Nicht zugewiesen"}
         </p>
       </div>
 

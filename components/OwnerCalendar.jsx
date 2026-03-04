@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react"
 import {
   getMyAvailabilities,
-  getAssignments,
+  getMyAssignments,
   releaseSpot,
   unreleaseSpot,
   getReservationsForDate,
@@ -33,7 +33,8 @@ export default function OwnerCalendar({ user }) {
   const today = new Date()
   const [currentYear, setCurrentYear] = useState(today.getFullYear())
   const [currentMonth, setCurrentMonth] = useState(today.getMonth())
-  const [mySpot, setMySpot] = useState(null)
+  const [mySpots, setMySpots] = useState([])
+  const [selectedSpotIdx, setSelectedSpotIdx] = useState(0)
   const [releasedDates, setReleasedDates] = useState({}) // date -> availability obj
   const [reservedDates, setReservedDates] = useState(new Set())
   const [loading, setLoading] = useState(true)
@@ -43,23 +44,28 @@ export default function OwnerCalendar({ user }) {
   const [recurringDays, setRecurringDays] = useState({}) // { 1: { id, weekday, ... }, ... }
   const [recurringLoading, setRecurringLoading] = useState(null) // weekday number being toggled
 
+  const mySpot = mySpots[selectedSpotIdx] || null
+
   const weeks = getMonthWeeks(currentYear, currentMonth)
 
   const loadData = useCallback(async (isInitial = true) => {
     if (isInitial) setLoading(true)
 
-    // Find my spot assignment
-    const { data: assignments } = await getAssignments()
-    const myAssignment = (assignments || []).find((a) => a.user?.id === user.id)
+    // Find all my spot assignments
+    const { data: myAssignments } = await getMyAssignments(user.id)
+    const spots = (myAssignments || []).map((a) => a.spot).filter(Boolean)
+    setMySpots(spots)
 
-    if (myAssignment) {
-      setMySpot(myAssignment.spot)
+    const effectiveIdx = selectedSpotIdx >= spots.length ? 0 : selectedSpotIdx
+    if (effectiveIdx !== selectedSpotIdx) setSelectedSpotIdx(effectiveIdx)
+    const currentSpot = spots[effectiveIdx] || null
 
-      // Load released dates for the visible month range
+    if (currentSpot) {
+      // Load released dates for the visible month range, filtered by spot
       const allDates = weeks.flat()
       const fromDate = allDates[0]
       const toDate = allDates[allDates.length - 1]
-      const { data: avails } = await getMyAvailabilities(user.id, fromDate, toDate)
+      const { data: avails } = await getMyAvailabilities(user.id, fromDate, toDate, currentSpot.id)
 
       const dateMap = {}
         ; (avails || []).forEach((a) => { dateMap[a.date] = a })
@@ -78,15 +84,19 @@ export default function OwnerCalendar({ user }) {
       })
       setReservedDates(reserved)
 
-      // Load recurring availabilities
-      const { data: recur } = await getRecurringAvailabilities(user.id)
+      // Load recurring availabilities, filtered by spot
+      const { data: recur } = await getRecurringAvailabilities(user.id, currentSpot.id)
       const recurMap = {}
         ; (recur || []).forEach((r) => { recurMap[r.weekday] = r })
       setRecurringDays(recurMap)
+    } else {
+      setReleasedDates({})
+      setReservedDates(new Set())
+      setRecurringDays({})
     }
 
     if (isInitial) setLoading(false)
-  }, [user.id, currentYear, currentMonth])
+  }, [user.id, currentYear, currentMonth, selectedSpotIdx])
 
   useEffect(() => {
     loadData(true)
@@ -211,7 +221,7 @@ export default function OwnerCalendar({ user }) {
     )
   }
 
-  if (!mySpot) {
+  if (mySpots.length === 0) {
     return (
       <div className="text-center py-16 bg-white rounded-3xl border border-orendt-gray-200">
         <div className="w-16 h-16 bg-orendt-gray-50 rounded-2xl mx-auto mb-6 flex items-center justify-center border border-orendt-gray-100">
@@ -231,6 +241,22 @@ export default function OwnerCalendar({ user }) {
 
   return (
     <div className="bg-white p-6 md:p-8 rounded-3xl border border-orendt-gray-200 shadow-sm">
+      {/* Spot selection tabs (only if multiple spots) */}
+      {mySpots.length > 1 && (
+        <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-1">
+          {mySpots.map((spot, idx) => (
+            <button
+              key={spot.id}
+              onClick={() => setSelectedSpotIdx(idx)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-display text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap border-2 ${selectedSpotIdx === idx ? "bg-orendt-black text-orendt-accent border-orendt-black shadow-md" : "bg-white text-orendt-gray-400 border-orendt-gray-100 hover:border-orendt-black hover:text-orendt-black"}`}
+            >
+              {spot.label}
+              <span className={`text-[8px] tracking-wider ${selectedSpotIdx === idx ? "text-orendt-accent/70" : "text-orendt-gray-300"}`}>{spot.zone}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Header with month navigation */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-8 sm:mb-10">
         <div>

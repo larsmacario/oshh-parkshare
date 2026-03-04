@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from "react"
 import {
   getProfiles,
-  updateProfile,
   getSpots,
   createSpot,
   updateSpot,
@@ -11,12 +10,6 @@ import {
   getAssignments,
   assignSpot,
   unassignSpot,
-  assignTeamToSpot,
-  unassignTeamFromSpot,
-  getTeams,
-  createTeam,
-  updateTeam,
-  deleteTeam,
   getStats,
   getReservationsForDate,
   getAppSetting,
@@ -34,7 +27,7 @@ import { getToday } from "@/lib/dates"
 const chartIcon = <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
 const gridIcon = <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>
 const usersIcon = <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>
-const teamsIcon = <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+
 const settingsIcon = <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
 
 // ─── Main Component ─────────────────────────────────────────────
@@ -45,27 +38,24 @@ export default function AdminPanel({ user }) {
   const [profiles, setProfiles] = useState([])
   const [spots, setSpots] = useState([])
   const [assignments, setAssignments] = useState([])
-  const [teams, setTeams] = useState([])
   const [todayReservations, setTodayReservations] = useState([])
   const [loading, setLoading] = useState(true)
 
   const loadData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
     const today = getToday()
-    const [statsRes, profilesRes, spotsRes, assignmentsRes, todayRes, teamsRes] = await Promise.all([
+    const [statsRes, profilesRes, spotsRes, assignmentsRes, todayRes] = await Promise.all([
       getStats(),
       getProfiles(),
       getSpots(),
       getAssignments(),
       getReservationsForDate(today),
-      getTeams(),
     ])
     setStats(statsRes)
     setProfiles(profilesRes.data || [])
     setSpots(spotsRes.data || [])
     setAssignments(assignmentsRes.data || [])
     setTodayReservations(todayRes.data || [])
-    setTeams(teamsRes.data || [])
     if (!silent) setLoading(false)
   }, [])
 
@@ -75,7 +65,6 @@ export default function AdminPanel({ user }) {
     { id: "overview", label: "Übersicht", icon: chartIcon },
     { id: "spots", label: "Parkplätze", icon: gridIcon },
     { id: "users", label: "Mitarbeiter", icon: usersIcon },
-    { id: "teams", label: "Teams", icon: teamsIcon },
     { id: "settings", label: "Einstellungen", icon: settingsIcon },
   ]
 
@@ -112,12 +101,10 @@ export default function AdminPanel({ user }) {
                 spots={spots}
                 assignments={assignments}
                 profiles={profiles.filter((p) => p.role === "owner" || p.role === "admin")}
-                teams={teams}
                 onRefresh={loadData}
               />
             )}
-            {tab === "users" && <UsersTab profiles={profiles} teams={teams} onRefresh={loadData} />}
-            {tab === "teams" && <TeamsTab teams={teams} onRefresh={loadData} />}
+            {tab === "users" && <UsersTab profiles={profiles} onRefresh={loadData} />}
             {tab === "settings" && <SettingsTab />}
           </div>
         )}
@@ -188,7 +175,7 @@ function OverviewTab({ stats, todayReservations }) {
 
 // ─── Spots Tab ──────────────────────────────────────────────────
 
-function SpotsTab({ spots, assignments, profiles, teams, onRefresh }) {
+function SpotsTab({ spots, assignments, profiles, onRefresh }) {
   const [newLabel, setNewLabel] = useState("")
   const [newZone, setNewZone] = useState("Hauptparkplatz")
   const [adding, setAdding] = useState(false)
@@ -197,12 +184,13 @@ function SpotsTab({ spots, assignments, profiles, teams, onRefresh }) {
   const [editZone, setEditZone] = useState("")
   const [saving, setSaving] = useState(false)
 
-  const assignmentBySpot = {}
-  assignments.forEach((a) => { if (!a.valid_until) assignmentBySpot[a.spot_id] = a })
-
-  const assignedUserIds = new Set(
-    assignments.filter((a) => !a.valid_until).map((a) => a.user?.id).filter(Boolean)
-  )
+  const assignmentsBySpot = {}
+  assignments.forEach((a) => {
+    if (!a.valid_until) {
+      if (!assignmentsBySpot[a.spot_id]) assignmentsBySpot[a.spot_id] = []
+      assignmentsBySpot[a.spot_id].push(a)
+    }
+  })
 
   async function handleAdd() {
     if (!newLabel.trim()) return
@@ -236,22 +224,14 @@ function SpotsTab({ spots, assignments, profiles, teams, onRefresh }) {
     await onRefresh(true)
   }
 
-  async function handleOwnerChange(spotId, userId) {
-    if (userId) {
-      await unassignTeamFromSpot(spotId)
-      await assignSpot(spotId, userId)
-    } else {
-      await unassignSpot(spotId)
-    }
+  async function handleAddOwner(spotId, userId) {
+    if (!userId) return
+    await assignSpot(spotId, userId)
     await onRefresh(true)
   }
 
-  async function handleTeamChange(spotId, teamId) {
-    if (teamId) {
-      await assignTeamToSpot(spotId, teamId)
-    } else {
-      await unassignTeamFromSpot(spotId)
-    }
+  async function handleRemoveOwner(assignmentId) {
+    await unassignSpot(assignmentId)
     await onRefresh(true)
   }
 
@@ -283,28 +263,23 @@ function SpotsTab({ spots, assignments, profiles, teams, onRefresh }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {spots.map((spot, i) => {
           const isEditing = editingId === spot.id
-          const assignment = assignmentBySpot[spot.id]
-          const assignedUserId = assignment?.user?.id || ""
-          const assignedTeamId = spot.team_id || ""
-          const isTeamSpot = !!spot.team_id
+          const spotAssignments = assignmentsBySpot[spot.id] || []
+          const spotOwnerIds = new Set(spotAssignments.map((a) => a.user?.id).filter(Boolean))
 
           return (
             <div
               key={spot.id}
-              className={`flex flex-col p-6 bg-white rounded-[2rem] border-2 transition-all duration-300 shadow-sm opacity-0 animate-slide-up ${isEditing ? "border-orendt-black" : isTeamSpot ? "border-emerald-200 hover:border-emerald-400" : "border-orendt-gray-100 hover:border-orendt-black"}`}
+              className={`flex flex-col p-6 bg-white rounded-[2rem] border-2 transition-all duration-300 shadow-sm opacity-0 animate-slide-up ${isEditing ? "border-orendt-black" : "border-orendt-gray-100 hover:border-orendt-black"}`}
               style={{ animationDelay: `${i * 50}ms`, animationFillMode: "forwards" }}
             >
               {/* Card header */}
               <div className="flex items-center justify-between mb-5">
                 <div className="flex items-center gap-3">
-                  <div className={`w-14 h-14 rounded-[1.25rem] border flex items-center justify-center ${isTeamSpot ? "bg-emerald-50 border-emerald-200" : "bg-orendt-gray-50 border-orendt-gray-100"}`}>
-                    <span className="font-display text-xl font-bold text-orendt-black uppercase tracking-tighter">
-                      {isEditing ? editLabel || spot.label : spot.label}
+                  <div className="w-14 h-14 rounded-[1.25rem] border flex items-center justify-center bg-orendt-gray-50 border-orendt-gray-100 flex-shrink-0 overflow-hidden">
+                    <span className="font-display text-sm font-bold text-orendt-black uppercase tracking-tight text-center leading-tight px-1">
+                      {(isEditing ? editLabel || spot.label : spot.label).slice(0, 5)}
                     </span>
                   </div>
-                  {isTeamSpot && (
-                    <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-full text-[9px] font-display font-bold uppercase tracking-widest">Team</span>
-                  )}
                 </div>
                 <div className="flex items-center gap-1">
                   {!isEditing ? (
@@ -347,8 +322,11 @@ function SpotsTab({ spots, assignments, profiles, teams, onRefresh }) {
                 </div>
               ) : (
                 <div className="mb-5">
-                  <span className="font-display text-base font-bold text-orendt-black block">{spot.label}</span>
-                  <span className="text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-widest mt-1 block">{spot.zone}</span>
+                  <span className="font-display text-base font-bold text-orendt-black block truncate" title={spot.label}>{spot.label}</span>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-widest mt-1">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
+                    {spot.zone}
+                  </span>
                 </div>
               )}
 
@@ -357,14 +335,27 @@ function SpotsTab({ spots, assignments, profiles, teams, onRefresh }) {
                 <p className="text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-[0.2em] ml-1">Zugewiesen an</p>
 
                 <div>
-                  <label className="text-[9px] font-display font-bold text-orendt-gray-400 uppercase tracking-widest ml-1 block mb-1">Mitarbeiter</label>
+                  <label className="text-[9px] font-display font-bold text-orendt-gray-400 uppercase tracking-widest ml-1 block mb-1">Inhaber</label>
+                  {/* Owner chips */}
+                  {spotAssignments.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {spotAssignments.map((a) => (
+                        <div key={a.id} className="flex items-center gap-1.5 px-3 py-1.5 bg-orendt-gray-50 border border-orendt-gray-200 rounded-xl group">
+                          <span className="text-[11px] font-display font-bold text-orendt-black uppercase tracking-wider">{a.user?.full_name}</span>
+                          <button onClick={() => handleRemoveOwner(a.id)} className="p-0.5 text-orendt-gray-300 hover:text-red-500 transition-colors" title="Entfernen">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* Add owner dropdown */}
                   <div className="relative">
-                    <select value={assignedTeamId ? "" : assignedUserId} onChange={(e) => handleOwnerChange(spot.id, e.target.value)} className="w-full px-4 py-2.5 bg-orendt-gray-50 border border-orendt-gray-100 rounded-xl text-[11px] font-display font-bold uppercase tracking-wider outline-none focus:border-orendt-black transition-all appearance-none cursor-pointer pr-9">
-                      <option value="">— Kein Mitarbeiter —</option>
-                      {profiles.map((p) => {
-                        const isElsewhere = assignedUserIds.has(p.id) && assignedUserId !== p.id
-                        return <option key={p.id} value={p.id} disabled={isElsewhere}>{p.full_name}{isElsewhere ? " (bereits zugewiesen)" : ""}</option>
-                      })}
+                    <select value="" onChange={(e) => handleAddOwner(spot.id, e.target.value)} className="w-full px-4 py-2.5 bg-orendt-gray-50 border border-orendt-gray-100 rounded-xl text-[11px] font-display font-bold uppercase tracking-wider outline-none focus:border-orendt-black transition-all appearance-none cursor-pointer pr-9">
+                      <option value="">+ Mitarbeiter hinzufügen</option>
+                      {profiles.filter((p) => !spotOwnerIds.has(p.id)).map((p) => (
+                        <option key={p.id} value={p.id}>{p.full_name}</option>
+                      ))}
                     </select>
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-40">
                       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
@@ -372,24 +363,6 @@ function SpotsTab({ spots, assignments, profiles, teams, onRefresh }) {
                   </div>
                 </div>
 
-                <div>
-                  <label className="text-[9px] font-display font-bold text-orendt-gray-400 uppercase tracking-widest ml-1 block mb-1">Team (immer frei)</label>
-                  <div className="relative">
-                    <select value={assignedTeamId} onChange={(e) => handleTeamChange(spot.id, e.target.value)} className={`w-full px-4 py-2.5 border rounded-xl text-[11px] font-display font-bold uppercase tracking-wider outline-none transition-all appearance-none cursor-pointer pr-9 ${assignedTeamId ? "bg-emerald-50 border-emerald-300 text-emerald-700" : "bg-orendt-gray-50 border-orendt-gray-100 focus:border-orendt-black"}`}>
-                      <option value="">— Kein Team —</option>
-                      {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                    </select>
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-40">
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
-                    </div>
-                  </div>
-                  {isTeamSpot && (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl mt-2">
-                      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                      <span className="text-[9px] font-display font-bold text-emerald-700 uppercase tracking-wider">Immer frei buchbar</span>
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
           )
@@ -401,11 +374,10 @@ function SpotsTab({ spots, assignments, profiles, teams, onRefresh }) {
 
 // ─── Users Tab ──────────────────────────────────────────────────
 
-function UsersTab({ profiles, teams, onRefresh }) {
+function UsersTab({ profiles, onRefresh }) {
   const [newUser, setNewUser] = useState({ email: "", fullName: "", role: "flexible" })
   const [addingUser, setAddingUser] = useState(false)
   const [actionLoading, setActionLoading] = useState(null)
-  const [savingTeam, setSavingTeam] = useState(null)
   const [editingUser, setEditingUser] = useState(null) // { id, fullName, email }
   const [savingEdit, setSavingEdit] = useState(false)
 
@@ -435,13 +407,6 @@ function UsersTab({ profiles, teams, onRefresh }) {
       alert("Fehler: " + err.message)
     }
     setSavingEdit(false)
-  }
-
-  async function handleTeamChange(userId, teamId) {
-    setSavingTeam(userId)
-    await updateProfile(userId, { team_id: teamId || null })
-    await onRefresh(true)
-    setSavingTeam(null)
   }
 
   async function handleAddUser() {
@@ -526,7 +491,6 @@ function UsersTab({ profiles, teams, onRefresh }) {
         {profiles.map((profile, i) => {
           const isBlocked = profile.is_blocked
           const isLoading = actionLoading === profile.id
-          const currentTeamId = profile.team_id || ""
           const isEditingThis = editingUser?.id === profile.id
 
           return (
@@ -541,31 +505,11 @@ function UsersTab({ profiles, teams, onRefresh }) {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-[11px] text-orendt-gray-400 font-display font-bold uppercase tracking-widest">{profile.email}</span>
                       {isBlocked && <span className="text-[9px] font-display font-bold uppercase tracking-widest px-2 py-0.5 bg-red-100 text-red-500 rounded-full border border-red-200">Gesperrt</span>}
-                      {profile.team_id && teams.find((t) => t.id === profile.team_id) && (
-                        <span className="text-[9px] font-display font-bold uppercase tracking-widest px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-200">
-                          {teams.find((t) => t.id === profile.team_id)?.name}
-                        </span>
-                      )}
                     </div>
                   </div>
                 </div>
 
                 <div className="flex flex-wrap sm:flex-nowrap sm:items-center gap-3">
-                  {/* Team dropdown */}
-                  <div className="relative">
-                    <select
-                      value={currentTeamId}
-                      onChange={(e) => handleTeamChange(profile.id, e.target.value)}
-                      disabled={savingTeam === profile.id}
-                      className="w-full sm:w-auto px-4 py-3 bg-orendt-gray-50 border border-orendt-gray-100 rounded-2xl text-[11px] font-display font-bold uppercase tracking-widest outline-none focus:border-orendt-black transition-all appearance-none cursor-pointer pr-8 disabled:opacity-50"
-                    >
-                      <option value="">— Kein Team —</option>
-                      {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                    </select>
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-40">
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
-                    </div>
-                  </div>
                   {/* Role dropdown */}
                   <div className="relative">
                     <select value={profile.role} onChange={(e) => handleRoleChange(profile.id, e.target.value)} disabled={isLoading} className="w-full sm:w-auto px-6 py-3.5 bg-orendt-gray-50 border border-orendt-gray-100 rounded-2xl text-[11px] font-display font-bold uppercase tracking-widest outline-none focus:border-orendt-black transition-all appearance-none cursor-pointer pr-10 disabled:opacity-50">
@@ -628,107 +572,6 @@ function UsersTab({ profiles, teams, onRefresh }) {
         {profiles.length === 0 && (
           <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-orendt-gray-100">
             <p className="text-orendt-gray-400 font-display text-[11px] font-bold uppercase tracking-[0.2em]">Noch keine Mitarbeiter registriert</p>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ─── Teams Tab ──────────────────────────────────────────────────
-
-function TeamsTab({ teams, onRefresh }) {
-  const [newName, setNewName] = useState("")
-
-  const [adding, setAdding] = useState(false)
-  const [editingId, setEditingId] = useState(null)
-  const [editName, setEditName] = useState("")
-  const [saving, setSaving] = useState(false)
-
-  async function handleAdd() {
-    if (!newName.trim()) return
-    setAdding(true)
-    await createTeam(newName.trim())
-    setNewName("")
-    await onRefresh(true)
-    setAdding(false)
-  }
-
-  async function handleSave(id) {
-    if (!editName.trim()) return
-    setSaving(true)
-    await updateTeam(id, editName.trim())
-    setEditingId(null)
-    await onRefresh(true)
-    setSaving(false)
-  }
-
-  async function handleDelete(id, name) {
-    if (!confirm(`Team "${name}" wirklich löschen? Alle Zuweisungen werden aufgehoben.`)) return
-    await deleteTeam(id)
-    await onRefresh(true)
-  }
-
-  return (
-    <div className="space-y-8">
-      {/* Add team form */}
-      <div className="p-8 bg-white rounded-[2rem] border-2 border-orendt-gray-100 shadow-sm">
-        <h3 className="font-display text-sm font-bold text-orendt-black uppercase tracking-widest mb-6">Neues Team anlegen</h3>
-        <div className="flex flex-col md:flex-row items-end gap-6">
-          <div className="flex-1 w-full">
-            <label className="block text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Team-Name</label>
-            <input
-              type="text"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-              placeholder="z.B. Vertrieb"
-              className="w-full px-5 py-3.5 bg-orendt-gray-50 border border-orendt-gray-100 rounded-2xl text-sm outline-none focus:border-orendt-black transition-all"
-            />
-          </div>
-          <button onClick={handleAdd} disabled={adding || !newName.trim()} className="w-full md:w-auto px-8 py-4 bg-orendt-black text-orendt-accent font-display text-[11px] font-bold uppercase tracking-[0.2em] rounded-2xl hover:opacity-90 disabled:opacity-30 transition-all shadow-lg active:scale-95">
-            {adding ? "Anlegen..." : "Team Anlegen"}
-          </button>
-        </div>
-      </div>
-
-      {/* Teams list */}
-      <div className="space-y-4">
-        {teams.map((team, i) => (
-          <div key={team.id} className="flex items-center justify-between p-6 bg-white rounded-2xl border-2 border-orendt-gray-100 hover:border-orendt-black transition-all shadow-sm opacity-0 animate-slide-up" style={{ animationDelay: `${i * 50}ms`, animationFillMode: "forwards" }}>
-            {editingId === team.id ? (
-              <div className="flex items-center gap-3 flex-1 mr-4">
-                <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSave(team.id)} className="flex-1 px-4 py-2.5 bg-orendt-gray-50 border border-orendt-gray-200 rounded-xl text-sm outline-none focus:border-orendt-black transition-all" autoFocus />
-                <button onClick={() => handleSave(team.id)} disabled={saving || !editName.trim()} className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all disabled:opacity-30">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                </button>
-                <button onClick={() => setEditingId(null)} className="p-2 text-orendt-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-center">
-                  <span className="text-emerald-600 font-display font-bold text-sm">{team.name.charAt(0).toUpperCase()}</span>
-                </div>
-                <span className="font-display font-bold text-orendt-black">{team.name}</span>
-              </div>
-            )}
-            {editingId !== team.id && (
-              <div className="flex items-center gap-2">
-                <button onClick={() => { setEditingId(team.id); setEditName(team.name) }} className="p-2 text-orendt-gray-300 hover:text-orendt-black hover:bg-orendt-gray-50 rounded-xl transition-all" title="Umbenennen">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></svg>
-                </button>
-                <button onClick={() => handleDelete(team.id, team.name)} className="p-2 text-orendt-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all" title="Löschen">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" /></svg>
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
-        {teams.length === 0 && (
-          <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-orendt-gray-100">
-            <p className="text-orendt-gray-400 font-display text-[11px] font-bold uppercase tracking-[0.2em]">Noch keine Teams angelegt</p>
           </div>
         )}
       </div>

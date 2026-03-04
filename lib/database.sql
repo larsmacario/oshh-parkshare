@@ -56,8 +56,14 @@ CREATE TABLE public.spot_assignments (
   valid_from DATE NOT NULL DEFAULT CURRENT_DATE,
   valid_until DATE,  -- NULL = unbefristet
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE(spot_id, valid_from)  -- ein Platz, ein Owner pro Startdatum
+  -- Multiple owners per spot allowed
+  -- Duplicate prevention via partial unique index (see below)
 );
+
+-- Prevent duplicate active assignments (same user + same spot where valid_until IS NULL)
+CREATE UNIQUE INDEX idx_unique_active_spot_user
+  ON public.spot_assignments(spot_id, user_id)
+  WHERE valid_until IS NULL;
 
 -- ─── 4. AVAILABILITIES (Owner gibt Tag frei) ────────────────
 
@@ -228,37 +234,8 @@ CREATE POLICY "Reservations: Admin verwaltet"
 -- USEFUL VIEWS
 -- ============================================================
 
--- Tagesübersicht: Status aller Plätze für ein beliebiges Datum
-CREATE OR REPLACE VIEW public.daily_spot_status AS
-SELECT
-  ps.id AS spot_id,
-  ps.label,
-  ps.zone,
-  sa.user_id AS owner_id,
-  p_owner.full_name AS owner_name,
-  d.date,
-  CASE
-    WHEN r.id IS NOT NULL AND r.status = 'confirmed' THEN 'reserved'
-    WHEN a.id IS NOT NULL THEN 'available'
-    WHEN sa.id IS NOT NULL THEN 'occupied'
-    ELSE 'unassigned'
-  END AS status,
-  r.user_id AS reserved_by_id,
-  p_reserver.full_name AS reserved_by_name
-FROM public.parking_spots ps
-CROSS JOIN (SELECT CURRENT_DATE AS date) d
-LEFT JOIN public.spot_assignments sa
-  ON sa.spot_id = ps.id
-  AND sa.valid_from <= d.date
-  AND (sa.valid_until IS NULL OR sa.valid_until >= d.date)
-LEFT JOIN public.profiles p_owner ON p_owner.id = sa.user_id
-LEFT JOIN public.availabilities a
-  ON a.spot_id = ps.id AND a.date = d.date
-LEFT JOIN public.reservations r
-  ON r.spot_id = ps.id AND r.date = d.date AND r.status = 'confirmed'
-LEFT JOIN public.profiles p_reserver ON p_reserver.id = r.user_id
-WHERE ps.is_active = true
-ORDER BY ps.sort_order, ps.label;
+-- Note: daily_spot_status view is replaced by getDailyOverview() in lib/supabase.js
+-- which handles multiple owners per spot correctly in application code.
 
 
 -- ============================================================

@@ -248,18 +248,17 @@ export default function LoginPage() {
 
               {isSignUp && (
                 <div className="animate-fade-in">
-                  <label className="flex items-start gap-3 cursor-pointer group">
+                  <label className="flex items-start gap-3 cursor-pointer group" onClick={(e) => { if (e.target.closest('a')) return; }}>
                     <div className="relative mt-0.5 shrink-0">
                       <input
                         type="checkbox"
                         checked={privacyAccepted}
                         onChange={(e) => setPrivacyAccepted(e.target.checked)}
                         required
-                        className="sr-only"
+                        className="peer sr-only"
                       />
                       <div
-                        onClick={() => setPrivacyAccepted(!privacyAccepted)}
-                        className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all cursor-pointer ${privacyAccepted
+                        className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all cursor-pointer pointer-events-none ${privacyAccepted
                             ? "bg-orendt-black border-orendt-black"
                             : "bg-white border-orendt-gray-200 group-hover:border-orendt-gray-400"
                           }`}
@@ -276,6 +275,7 @@ export default function LoginPage() {
                       <Link
                         href="/datenschutz"
                         target="_blank"
+                        onClick={(e) => e.stopPropagation()}
                         className="text-orendt-black underline underline-offset-2 hover:opacity-70 transition-opacity font-semibold"
                       >
                         Datenschutzerklärung
