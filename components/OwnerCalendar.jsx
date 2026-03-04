@@ -10,6 +10,9 @@ import {
   getRecurringAvailabilities,
   addRecurringAvailability,
   removeRecurringAvailability,
+  getMyBlocks,
+  blockSpot,
+  unblockSpot,
 } from "@/lib/supabase"
 import {
   getMonthWeeks,
@@ -37,6 +40,7 @@ export default function OwnerCalendar({ user }) {
   const [selectedSpotIdx, setSelectedSpotIdx] = useState(0)
   const [releasedDates, setReleasedDates] = useState({}) // date -> availability obj
   const [reservedDates, setReservedDates] = useState(new Set())
+  const [blockedDates, setBlockedDates] = useState({}) // date -> block obj
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(null)
 
@@ -71,6 +75,12 @@ export default function OwnerCalendar({ user }) {
         ; (avails || []).forEach((a) => { dateMap[a.date] = a })
       setReleasedDates(dateMap)
 
+      // Load owner-set blocks for this month range
+      const { data: blocks } = await getMyBlocks(user.id, fromDate, toDate, currentSpot.id)
+      const blockMap = {}
+        ; (blocks || []).forEach((b) => { blockMap[b.date] = b })
+      setBlockedDates(blockMap)
+
       // Check which released dates already have reservations (in parallel)
       const reserved = new Set()
       const checks = await Promise.all(
@@ -92,6 +102,7 @@ export default function OwnerCalendar({ user }) {
     } else {
       setReleasedDates({})
       setReservedDates(new Set())
+      setBlockedDates({})
       setRecurringDays({})
     }
 
@@ -109,42 +120,65 @@ export default function OwnerCalendar({ user }) {
 
     setActionLoading(date)
 
-    if (releasedDates[date]) {
-      // Already released → re-occupy
+    // Weekday of this date
+    const weekdayNum = getWeekdayNumber(date)
+    const isRecurring = !!recurringDays[weekdayNum]
+    const isPermanent = mySpot?.is_permanently_released === true
+    const effectivelyFree = !!releasedDates[date] || (isRecurring && !isPast(date)) || isPermanent
+
+    if (blockedDates[date]) {
+      // Currently blocked → unblock (restore to recurring/permanent free)
+      const removedBlock = blockedDates[date]
+      setBlockedDates((prev) => {
+        const next = { ...prev }
+        delete next[date]
+        return next
+      })
+      const { error } = await unblockSpot(removedBlock.id)
+      if (error) {
+        setBlockedDates((prev) => ({ ...prev, [date]: removedBlock }))
+      }
+    } else if (releasedDates[date]) {
+      // Explicitly released → re-occupy
       if (reservedDates.has(date)) {
         alert("Dieser Tag ist bereits von einem Kollegen gebucht und kann nicht zurückgenommen werden.")
         setActionLoading(null)
         return
       }
-
-      // Optimistic: remove from releasedDates immediately
       const removedAvail = releasedDates[date]
       setReleasedDates((prev) => {
         const next = { ...prev }
         delete next[date]
         return next
       })
-
       const { error } = await unreleaseSpot(removedAvail.id)
       if (error) {
-        // Revert on failure
         setReleasedDates((prev) => ({ ...prev, [date]: removedAvail }))
+      }
+    } else if (effectivelyFree) {
+      // Day is free via recurring/permanent but NOT explicitly released → block it
+      setBlockedDates((prev) => ({ ...prev, [date]: { id: "optimistic", date } }))
+      const { data, error } = await blockSpot(mySpot.id, user.id, date)
+      if (error) {
+        setBlockedDates((prev) => {
+          const next = { ...prev }
+          delete next[date]
+          return next
+        })
+      } else if (data) {
+        setBlockedDates((prev) => ({ ...prev, [date]: data }))
       }
     } else {
       // Occupied (default) → release
-      // Optimistic: add to releasedDates immediately with a placeholder
       setReleasedDates((prev) => ({ ...prev, [date]: { id: "optimistic", date } }))
-
       const { data, error } = await releaseSpot(mySpot.id, user.id, date)
       if (error) {
-        // Revert on failure
         setReleasedDates((prev) => {
           const next = { ...prev }
           delete next[date]
           return next
         })
       } else if (data) {
-        // Replace optimistic entry with real data
         setReleasedDates((prev) => ({ ...prev, [date]: data }))
       }
     }
@@ -294,6 +328,21 @@ export default function OwnerCalendar({ user }) {
         </div>
       </div>
 
+      {/* Permanent release banner */}
+      {mySpot?.is_permanently_released && (
+        <div className="mb-6 flex items-start gap-3 p-4 bg-emerald-50 border-2 border-emerald-200 rounded-2xl">
+          <span className="text-xl leading-none flex-shrink-0">🔓</span>
+          <div>
+            <p className="text-[11px] font-display font-bold uppercase tracking-widest text-emerald-700">
+              Dauerhaft freigegeben
+            </p>
+            <p className="text-[10px] font-display text-emerald-600 mt-0.5 leading-relaxed">
+              Dein Platz <span className="font-bold">{mySpot.label}</span> wurde von der Administration dauerhaft für Kollegen freigegeben – jeden Tag, ohne Ausnahme.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ─── Recurring Weekday Toggles ──────────────────────────── */}
       <div className="mb-8 p-5 bg-orendt-gray-50 rounded-2xl border border-orendt-gray-100">
         <div className="flex items-center gap-2 mb-4">
@@ -382,6 +431,10 @@ export default function OwnerCalendar({ user }) {
           <span className="text-[9px] sm:text-[10px] font-display font-bold text-orendt-gray-400">↻</span>
           <span className="text-[9px] sm:text-[10px] font-display font-bold uppercase tracking-wider text-orendt-gray-400">Dauerhaft frei</span>
         </div>
+        <div className="flex items-center gap-2">
+          <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-orange-400 border border-black/5" />
+          <span className="text-[9px] sm:text-[10px] font-display font-bold uppercase tracking-wider text-orendt-gray-400">Gesperrt</span>
+        </div>
       </div>
 
       {/* Calendar grid */}
@@ -402,6 +455,7 @@ export default function OwnerCalendar({ user }) {
               {week.map((date) => {
                 const released = !!releasedDates[date]
                 const reserved = reservedDates.has(date)
+                const blocked = !!blockedDates[date]
                 const past = isPast(date)
                 const todayDate = isToday(date)
                 const inMonth = isInMonth(date, currentYear, currentMonth)
@@ -410,8 +464,9 @@ export default function OwnerCalendar({ user }) {
                 // Check if this date's weekday is a recurring day
                 const weekdayNum = getWeekdayNumber(date) // 1–5
                 const isRecurring = !!recurringDays[weekdayNum]
-                // A day is "effectively free" if explicitly released OR recurring
-                const effectivelyFree = released || (isRecurring && inMonth && !past)
+                const isPermanent = mySpot?.is_permanently_released === true
+                // A day is "effectively free" if explicitly released OR recurring OR permanent (and not blocked)
+                const effectivelyFree = !blocked && (released || (isRecurring && inMonth && !past) || (isPermanent && inMonth && !past))
 
                 return (
                   <button
@@ -421,7 +476,7 @@ export default function OwnerCalendar({ user }) {
                     className={`
                       relative group py-4 sm:py-6 px-1 sm:px-2 text-center transition-all duration-300 border-r border-orendt-gray-50 last:border-0
                       ${!inMonth ? "opacity-15 cursor-default" : past ? "opacity-25 cursor-not-allowed" : "cursor-pointer hover:bg-white active:scale-95"}
-                      ${reserved ? "bg-status-reserved/5" : effectivelyFree ? "bg-orendt-accent/5" : "bg-transparent"}
+                      ${reserved ? "bg-status-reserved/5" : blocked ? "bg-orange-50" : effectivelyFree ? "bg-orendt-accent/5" : "bg-transparent"}
                     `}
                   >
                     {todayDate && (
@@ -431,9 +486,23 @@ export default function OwnerCalendar({ user }) {
                     )}
 
                     {/* Recurring indicator */}
-                    {isRecurring && inMonth && !past && (
+                    {isRecurring && inMonth && !past && !blocked && (
                       <div className="absolute top-1 sm:top-1.5 right-1 sm:right-1.5 text-[8px] text-orendt-gray-400 font-bold leading-none">
                         ↻
+                      </div>
+                    )}
+
+                    {/* Permanent indicator */}
+                    {!isRecurring && isPermanent && inMonth && !past && !blocked && (
+                      <div className="absolute top-1 sm:top-1.5 right-1 sm:right-1.5 text-[8px] text-emerald-400 font-bold leading-none">
+                        ∞
+                      </div>
+                    )}
+
+                    {/* Blocked indicator */}
+                    {blocked && inMonth && !past && (
+                      <div className="absolute top-1 sm:top-1.5 right-1 sm:right-1.5 text-[8px] text-orange-400 font-bold leading-none">
+                        ✕
                       </div>
                     )}
 
@@ -446,16 +515,16 @@ export default function OwnerCalendar({ user }) {
 
                     <span className={`
                       block text-[7px] sm:text-[9px] font-display font-bold uppercase tracking-widest leading-tight
-                      ${!inMonth ? "text-transparent" : reserved ? "text-amber-600" : released ? "text-green-600" : isRecurring && !past ? "text-green-500" : past ? "text-transparent" : "text-orendt-gray-300"}
+                      ${!inMonth ? "text-transparent" : reserved ? "text-amber-600" : blocked ? "text-orange-500" : released ? "text-green-600" : (isRecurring || isPermanent) && !past ? "text-green-500" : past ? "text-transparent" : "text-orendt-gray-300"}
                     `}>
-                      {isLoading ? "..." : !inMonth ? "–" : reserved ? "Gebucht" : released ? "Frei" : isRecurring && !past ? "Frei" : past ? "" : "Besetzt"}
+                      {isLoading ? "..." : !inMonth ? "–" : reserved ? "Gebucht" : blocked ? "Gesperrt" : released ? "Frei" : (isRecurring || isPermanent) && !past ? "Frei" : past ? "" : "Besetzt"}
                     </span>
 
                     {/* Visual indicator bar */}
-                    {inMonth && effectivelyFree && !past && (
+                    {inMonth && !past && (
                       <div className={`
                         absolute bottom-0 left-0 right-0 h-0.5 sm:h-1 transition-all duration-300
-                        ${reserved ? "bg-status-reserved" : "bg-orendt-accent opacity-60 group-hover:opacity-100"}
+                        ${reserved ? "bg-status-reserved" : blocked ? "bg-orange-400 opacity-60 group-hover:opacity-100" : effectivelyFree ? "bg-orendt-accent opacity-60 group-hover:opacity-100" : "opacity-0"}
                       `} />
                     )}
                   </button>

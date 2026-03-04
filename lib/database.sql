@@ -65,7 +65,40 @@ CREATE UNIQUE INDEX idx_unique_active_spot_user
   ON public.spot_assignments(spot_id, user_id)
   WHERE valid_until IS NULL;
 
--- ─── 4. AVAILABILITIES (Owner gibt Tag frei) ────────────────
+-- ─── 4. RECURRING AVAILABILITIES (Dauerhafte Wochentag-Freigaben) ──
+
+CREATE TABLE public.recurring_availabilities (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  spot_id UUID NOT NULL REFERENCES public.parking_spots(id) ON DELETE CASCADE,
+  owner_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  weekday INTEGER NOT NULL CHECK (weekday BETWEEN 1 AND 5),  -- 1=Mo, 2=Di, 3=Mi, 4=Do, 5=Fr
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(spot_id, owner_id, weekday)
+);
+
+ALTER TABLE public.recurring_availabilities ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "RecurringAvail: Jeder kann lesen"
+  ON public.recurring_availabilities FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "RecurringAvail: Owner verwaltet eigene"
+  ON public.recurring_availabilities FOR INSERT
+  TO authenticated
+  WITH CHECK (owner_id = auth.uid());
+
+CREATE POLICY "RecurringAvail: Owner kann eigene löschen"
+  ON public.recurring_availabilities FOR DELETE
+  TO authenticated
+  USING (owner_id = auth.uid());
+
+CREATE POLICY "RecurringAvail: Admin verwaltet"
+  ON public.recurring_availabilities FOR ALL
+  TO authenticated
+  USING (public.is_admin());
+
+-- ─── 5. AVAILABILITIES (Owner gibt Tag frei) ────────────────
 
 CREATE TABLE public.availabilities (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

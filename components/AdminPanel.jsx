@@ -20,6 +20,7 @@ import {
   deleteUserByAdmin,
   updateUserRoleByAdmin,
   updateUserByAdmin,
+  togglePermanentRelease,
 } from "@/lib/supabase"
 import { getToday } from "@/lib/dates"
 
@@ -183,6 +184,8 @@ function SpotsTab({ spots, assignments, profiles, onRefresh }) {
   const [editLabel, setEditLabel] = useState("")
   const [editZone, setEditZone] = useState("")
   const [saving, setSaving] = useState(false)
+  const [permanentLoading, setPermanentLoading] = useState(null) // spotId being toggled
+  const [localPermanent, setLocalPermanent] = useState({}) // optimistic state: { [spotId]: bool }
 
   const assignmentsBySpot = {}
   assignments.forEach((a) => {
@@ -221,6 +224,17 @@ function SpotsTab({ spots, assignments, profiles, onRefresh }) {
   async function handleDelete(spotId, label) {
     if (!confirm(`Parkplatz "${label}" wirklich löschen?`)) return
     await deleteSpot(spotId)
+    await onRefresh(true)
+  }
+
+  async function handleTogglePermanent(spotId, currentValue) {
+    const next = !currentValue
+    // Optimistic UI update
+    setLocalPermanent((prev) => ({ ...prev, [spotId]: next }))
+    setPermanentLoading(spotId)
+    await togglePermanentRelease(spotId, next)
+    setPermanentLoading(null)
+    // Silently refresh to sync DB state
     await onRefresh(true)
   }
 
@@ -362,6 +376,49 @@ function SpotsTab({ spots, assignments, profiles, onRefresh }) {
                     </div>
                   </div>
                 </div>
+
+                {/* Permanent release toggle */}
+                {(() => {
+                  const isPermanent = spot.id in localPermanent
+                    ? localPermanent[spot.id]
+                    : spot.is_permanently_released
+                  const isToggling = permanentLoading === spot.id
+                  return (
+                    <button
+                      onClick={() => handleTogglePermanent(spot.id, isPermanent)}
+                      disabled={isToggling}
+                      className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border-2 transition-all duration-200 group ${isPermanent
+                          ? "bg-emerald-50 border-emerald-300 hover:border-emerald-400"
+                          : "bg-orendt-gray-50 border-orendt-gray-100 hover:border-orendt-gray-300"
+                        } disabled:opacity-50`}
+                      title={isPermanent ? "Dauerfreigabe deaktivieren" : "Dauerhaft freigeben"}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-base leading-none">{isPermanent ? "🔓" : "🔒"}</span>
+                        <div className="text-left">
+                          <span className={`block text-[10px] font-display font-bold uppercase tracking-widest ${isPermanent ? "text-emerald-700" : "text-orendt-gray-400"
+                            }`}>
+                            Dauerhaft freigegeben
+                          </span>
+                          {isPermanent && (
+                            <span className="block text-[9px] font-display text-emerald-500 uppercase tracking-wider mt-0.5">Aktiv · Jeden Tag buchbar</span>
+                          )}
+                        </div>
+                      </div>
+                      {/* Toggle switch */}
+                      <div className={`relative w-10 h-5 rounded-full transition-colors duration-300 flex-shrink-0 ${isPermanent ? "bg-emerald-500" : "bg-orendt-gray-200"
+                        }`}>
+                        <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-300 ${isPermanent ? "translate-x-5" : "translate-x-0"
+                          }`} />
+                        {isToggling && (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  )
+                })()}
 
               </div>
             </div>
