@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import {
   getAvailableSpotsForDate,
   reserveSpot,
+  cancelReservation,
   getMyReservations,
   getAppSetting,
 } from "@/lib/supabase"
@@ -15,6 +16,7 @@ export default function FlexibleBooking({ user }) {
   const [myTodayReservation, setMyTodayReservation] = useState(null)
   const [loading, setLoading] = useState(true)
   const [booking, setBooking] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
   const [keyBoxPin, setKeyBoxPin] = useState(null)
 
   const loadData = useCallback(async () => {
@@ -49,6 +51,18 @@ export default function FlexibleBooking({ user }) {
   useEffect(() => {
     loadData()
   }, [loadData])
+
+  async function handleCancel() {
+    if (!myTodayReservation || cancelling) return
+    if (!confirm("Möchtest du deinen Platz wirklich freigeben? Er wird sofort wieder für andere verfügbar.")) return
+    setCancelling(true)
+    const { error } = await cancelReservation(myTodayReservation.id)
+    if (error) {
+      alert(error.message || "Fehler beim Freigeben")
+    }
+    await loadData()
+    setCancelling(false)
+  }
 
   async function handleBook() {
     if (!firstAvailableSpot || booking) return
@@ -121,6 +135,21 @@ export default function FlexibleBooking({ user }) {
                 Gültig bis Mitternacht
               </span>
             </div>
+
+            <button
+              onClick={handleCancel}
+              disabled={cancelling}
+              className="mt-2 px-6 py-3 bg-white text-orendt-gray-500 font-display text-xs font-bold uppercase tracking-[0.15em] rounded-xl border border-orendt-gray-200 hover:border-red-300 hover:text-red-500 hover:bg-red-50 active:scale-95 transition-all disabled:opacity-50"
+            >
+              {cancelling ? (
+                <div className="flex items-center justify-center gap-2">
+                  <div className="w-3 h-3 border-2 border-orendt-gray-300 border-t-orendt-gray-500 rounded-full animate-spin" />
+                  Wird freigegeben...
+                </div>
+              ) : (
+                "Platz freigeben"
+              )}
+            </button>
           </div>
         </div>
       </div>
