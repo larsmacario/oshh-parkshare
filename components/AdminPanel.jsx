@@ -12,6 +12,7 @@ import {
   unassignSpot,
   getStats,
   getReservationsForDate,
+  getAvailableSpotsForDate,
   getAppSetting,
   updateAppSetting,
   createUserViaAdmin,
@@ -40,23 +41,26 @@ export default function AdminPanel({ user }) {
   const [spots, setSpots] = useState([])
   const [assignments, setAssignments] = useState([])
   const [todayReservations, setTodayReservations] = useState([])
+  const [todayAvailable, setTodayAvailable] = useState([])
   const [loading, setLoading] = useState(true)
 
   const loadData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
     const today = getToday()
-    const [statsRes, profilesRes, spotsRes, assignmentsRes, todayRes] = await Promise.all([
+    const [statsRes, profilesRes, spotsRes, assignmentsRes, todayRes, availRes] = await Promise.all([
       getStats(),
       getProfiles(),
       getSpots(),
       getAssignments(),
       getReservationsForDate(today),
+      getAvailableSpotsForDate(today),
     ])
     setStats(statsRes)
     setProfiles(profilesRes.data || [])
     setSpots(spotsRes.data || [])
     setAssignments(assignmentsRes.data || [])
     setTodayReservations(todayRes.data || [])
+    setTodayAvailable(availRes.data || [])
     if (!silent) setLoading(false)
   }, [])
 
@@ -96,7 +100,7 @@ export default function AdminPanel({ user }) {
           </div>
         ) : (
           <div className="animate-fade-in">
-            {tab === "overview" && <OverviewTab stats={stats} todayReservations={todayReservations} />}
+            {tab === "overview" && <OverviewTab stats={stats} todayReservations={todayReservations} todayAvailable={todayAvailable} />}
             {tab === "spots" && (
               <SpotsTab
                 spots={spots}
@@ -122,12 +126,12 @@ export default function AdminPanel({ user }) {
 
 // ─── Overview Tab ───────────────────────────────────────────────
 
-function OverviewTab({ stats, todayReservations }) {
+function OverviewTab({ stats, todayReservations, todayAvailable }) {
   if (!stats) return null
   const cards = [
     { label: "Parkplätze", value: stats.totalSpots, sub: "Total Capacity", icon: "🅿️" },
     { label: "Mitarbeiter", value: stats.totalUsers, sub: "Registered Users", icon: "👥" },
-    { label: "Heute Frei", value: stats.todayAvailable, sub: "Available Spots", icon: "✨" },
+    { label: "Heute Frei", value: todayAvailable.length, sub: "Available Spots", icon: "✨" },
     { label: "Heute Belegt", value: stats.todayReservations, sub: "Active Bookings", icon: "🔑" },
   ]
   return (
@@ -142,6 +146,46 @@ function OverviewTab({ stats, todayReservations }) {
           </div>
         ))}
       </div>
+
+      {/* Available spots today - who released what */}
+      <div className="p-8 bg-white rounded-[2rem] border-2 border-orendt-gray-100 shadow-sm">
+        <div className="flex items-center gap-4 mb-6">
+          <h3 className="font-display text-sm font-bold text-orendt-black uppercase tracking-widest">Freie Plätze Heute</h3>
+          <div className="h-px flex-1 bg-orendt-gray-100" />
+          <div className="px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-full">
+            <span className="text-[10px] font-display font-bold text-emerald-700 uppercase tracking-wider">{todayAvailable.length} Verfügbar</span>
+          </div>
+        </div>
+        {todayAvailable.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {todayAvailable.map((avail, i) => {
+              const releaseType = avail.is_permanent ? "Dauerfreigabe" : avail.is_recurring ? "Wiederkehrend" : "Manuell"
+              const releaseIcon = avail.is_permanent ? "∞" : avail.is_recurring ? "↻" : "✨"
+              return (
+                <div key={avail.id} className="flex items-center gap-3 p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100 opacity-0 animate-slide-up" style={{ animationDelay: `${i * 60}ms`, animationFillMode: "forwards" }}>
+                  <div className="w-14 h-14 rounded-[1.25rem] bg-emerald-100 border border-emerald-200 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                    <span className="font-display text-[10px] font-bold text-emerald-800 uppercase tracking-tight text-center leading-tight px-1">
+                      {avail.spot?.label}
+                    </span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="font-display text-sm font-bold text-orendt-black block truncate">
+                      {avail.released_by_user?.full_name || "Kein Inhaber"}
+                    </span>
+                    <span className="text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-wider block truncate">{avail.spot?.zone}</span>
+                    <span className="text-[10px] font-display font-bold text-emerald-600 uppercase tracking-wider">{releaseIcon} {releaseType}</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-10 border-2 border-dashed border-orendt-gray-100 rounded-2xl">
+            <p className="text-[11px] font-display font-bold text-orendt-gray-400 uppercase tracking-[0.2em]">Heute keine freien Plätze verfügbar</p>
+          </div>
+        )}
+      </div>
+
       <div className="p-8 bg-white rounded-[2rem] border-2 border-orendt-gray-100 shadow-sm">
         <div className="flex items-center gap-4 mb-6">
           <h3 className="font-display text-sm font-bold text-orendt-black uppercase tracking-widest">Flexible Buchungen Heute</h3>
