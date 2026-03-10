@@ -1,13 +1,11 @@
 # Active Context
 
 ## Aktueller Fokus
-Datenschutzseite & Registrierungs-Checkbox – **abgeschlossen**
+UUID Syntax-Fehler beim Buchen von permanenten Plätzen – **abgeschlossen**
 
 ## Letzte Änderungen
-- `app/datenschutz/page.js`: Neue DSGVO-konforme Datenschutzseite – Sektionen zu Vercel, Supabase Auth, Supabase DB, Differenzierung Owner/Flexible, expliziter Kein-Kennzeichen-Hinweis
-- `app/login/page.js`: Datenschutz-Pflichtcheckbox im Sign-Up-Formular – Submit-Button disabled ohne Akzeptanz; Link zur `/datenschutz`-Seite
-- `components/Footer.jsx`: Datenschutz-Link neben Impressum hinzugefügt
+- `lib/supabase.js`: `reserveSpot` angepasst, um neben `recurring-` auch `permanent-` Präfixe bei `availabilityId` zu behandeln (verhindert UUID-Syntax-Fehler in DB).
 
 ## Build-Status
-✓ `npm run dev` läuft, alle Seiten erreichbar
+✓ `npm run dev` läuft, Bugfix implementiert
 
