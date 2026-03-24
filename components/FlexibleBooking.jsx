@@ -10,6 +10,45 @@ import {
 } from "@/lib/supabase"
 import { getToday, formatDateLong } from "@/lib/dates"
 
+/** Schriftgröße skaliert mit der Länge, damit lange Platznamen in der Box bleiben. */
+function spotBadgeTextClass(label) {
+  const n = label.length
+  if (n <= 4) return "text-4xl leading-none"
+  if (n <= 7) return "text-3xl leading-tight"
+  if (n <= 11) return "text-2xl leading-tight"
+  if (n <= 16) return "text-xl leading-snug tracking-tight"
+  return "text-lg leading-snug tracking-tight break-words"
+}
+
+function ParkingSpotBadge({ label, variant }) {
+  const text = label || "?"
+  const typo = spotBadgeTextClass(text)
+  const isReserved = variant === "reserved"
+
+  return (
+    <div
+      className={[
+        "inline-flex items-center justify-center rounded-3xl mb-6 px-4 py-4",
+        "min-h-[5.5rem] min-w-[5.5rem] max-w-[14rem] sm:max-w-[16rem]",
+        "text-balance",
+        isReserved
+          ? "bg-orendt-black shadow-xl"
+          : "bg-orendt-gray-50 border-2 border-orendt-gray-200 group-hover:bg-orendt-accent/10 transition-colors",
+      ].join(" ")}
+    >
+      <span
+        className={[
+          "font-display font-bold text-center break-words hyphens-auto",
+          typo,
+          isReserved ? "text-orendt-accent" : "text-orendt-black",
+        ].join(" ")}
+      >
+        {text}
+      </span>
+    </div>
+  )
+}
+
 export default function FlexibleBooking({ user }) {
   const today = getToday()
   const [firstAvailableSpot, setFirstAvailableSpot] = useState(null)
@@ -103,11 +142,10 @@ export default function FlexibleBooking({ user }) {
             Dein Platz Heute
           </p>
 
-          <div className="inline-flex items-center justify-center w-24 h-24 bg-orendt-black rounded-3xl mb-6 shadow-xl">
-            <span className="font-display text-4xl font-bold text-orendt-accent">
-              {myTodayReservation.spot?.label}
-            </span>
-          </div>
+          <ParkingSpotBadge
+            label={myTodayReservation.spot?.label}
+            variant="reserved"
+          />
 
           <h2 className="font-display text-2xl sm:text-3xl font-bold text-orendt-black uppercase tracking-tight mb-2">
             Platz gesichert! 🎉
@@ -159,17 +197,16 @@ export default function FlexibleBooking({ user }) {
   // State 2: A spot is available
   if (firstAvailableSpot) {
     return (
-      <div className="bg-white p-8 md:p-10 rounded-3xl border border-orendt-gray-200 shadow-sm animate-fade-in">
+      <div className="group bg-white p-8 md:p-10 rounded-3xl border border-orendt-gray-200 shadow-sm animate-fade-in">
         <div className="text-center">
           <p className="text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-[0.2em] mb-3">
             Verfügbar Heute
           </p>
 
-          <div className="inline-flex items-center justify-center w-24 h-24 bg-orendt-gray-50 border-2 border-orendt-gray-200 rounded-3xl mb-6 group-hover:bg-orendt-accent/10 transition-colors">
-            <span className="font-display text-4xl font-bold text-orendt-black">
-              {firstAvailableSpot.spot?.label}
-            </span>
-          </div>
+          <ParkingSpotBadge
+            label={firstAvailableSpot.spot?.label}
+            variant="available"
+          />
 
           <h2 className="font-display text-2xl sm:text-3xl font-bold text-orendt-black uppercase tracking-tight mb-2">
             Ein Platz wartet auf dich
