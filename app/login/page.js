@@ -1,11 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useAuth } from "@/lib/hooks"
 import Footer from "@/components/Footer"
-import { signIn, signUp, signOut, getCurrentUser, updatePassword, markPasswordChanged } from "@/lib/supabase"
+import { supabase, signIn, signUp, signOut, getCurrentUser, updatePassword, markPasswordChanged, requestPasswordReset } from "@/lib/supabase"
 
 export default function LoginPage() {
   const [isSignUp, setIsSignUp] = useState(false)
@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [fullName, setFullName] = useState("")
   const [error, setError] = useState("")
+  const [successMessage, setSuccessMessage] = useState("")
   const [loading, setLoading] = useState(false)
   const [privacyAccepted, setPrivacyAccepted] = useState(false)
 
@@ -22,12 +23,52 @@ export default function LoginPage() {
   const [confirmPassword, setConfirmPassword] = useState("")
   const [changingPassword, setChangingPassword] = useState(false)
   const [passwordChangeUser, setPasswordChangeUser] = useState(null)
+  const [isRecoveryFlow, setIsRecoveryFlow] = useState(false)
+  const [isForgotPasswordMode, setIsForgotPasswordMode] = useState(false)
 
   const router = useRouter()
 
+  function activateRecoveryMode() {
+    setIsSignUp(false)
+    setIsForgotPasswordMode(false)
+    setShowPasswordChange(true)
+    setIsRecoveryFlow(true)
+    setSuccessMessage("Bitte setze jetzt ein neues Passwort.")
+    setError("")
+  }
+
+  useEffect(() => {
+    const queryParams = new URLSearchParams(window.location.search)
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""))
+    const queryType = queryParams.get("type")
+    const hashType = hashParams.get("type")
+
+    if (queryType === "recovery" || hashType === "recovery") {
+      activateRecoveryMode()
+    }
+  }, [])
+
+  useEffect(() => {
+    const { data: subscription } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        activateRecoveryMode()
+      }
+    })
+
+    return () => {
+      subscription.subscription.unsubscribe()
+    }
+  }, [])
+
   async function handleSubmit(e) {
     e.preventDefault()
+    if (isForgotPasswordMode) {
+      await handleForgotPassword()
+      return
+    }
+
     setError("")
+    setSuccessMessage("")
     setLoading(true)
 
     try {
@@ -40,7 +81,7 @@ export default function LoginPage() {
           router.push("/dashboard")
         } else {
           // If email confirmation is required, data.session will be null
-          setError("Registrierung erfolgreich! Bitte bestätige deine E-Mail, bevor du dich einloggst.")
+          setSuccessMessage("Registrierung erfolgreich! Bitte bestätige deine E-Mail, bevor du dich einloggst.")
         }
       } else {
         const { error } = await signIn(email, password)
@@ -65,14 +106,53 @@ export default function LoginPage() {
       }
     } catch (err) {
       setError(err.message || "Ein Fehler ist aufgetreten")
+      setSuccessMessage("")
     } finally {
       setLoading(false)
     }
   }
 
+  async function handleForgotPassword() {
+    setError("")
+    setSuccessMessage("")
+
+    const normalizedEmail = email.trim().toLowerCase()
+    if (!normalizedEmail) {
+      setError("Bitte gib zuerst deine E-Mail-Adresse ein.")
+      return
+    }
+
+    setLoading(true)
+    try {
+      const redirectTo = `${window.location.origin}/login`
+      const { error: resetError } = await requestPasswordReset(normalizedEmail, redirectTo)
+      if (resetError) throw resetError
+      setSuccessMessage("Wenn ein Konto mit dieser E-Mail existiert, wurde ein Passwort-Reset-Link versendet.")
+    } catch (err) {
+      setError(err.message || "Passwort-Reset konnte nicht gestartet werden.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function openForgotPasswordMode() {
+    setIsSignUp(false)
+    setIsForgotPasswordMode(true)
+    setPassword("")
+    setError("")
+    setSuccessMessage("")
+  }
+
+  function closeForgotPasswordMode() {
+    setIsForgotPasswordMode(false)
+    setError("")
+    setSuccessMessage("")
+  }
+
   async function handlePasswordChange(e) {
     e.preventDefault()
     setError("")
+    setSuccessMessage("")
 
     if (newPassword.length < 6) {
       setError("Das Passwort muss mindestens 6 Zeichen lang sein.")
@@ -88,8 +168,10 @@ export default function LoginPage() {
       const { error: pwError } = await updatePassword(newPassword)
       if (pwError) throw pwError
 
-      const { error: markError } = await markPasswordChanged(passwordChangeUser.id)
-      if (markError) throw markError
+      if (passwordChangeUser?.id) {
+        const { error: markError } = await markPasswordChanged(passwordChangeUser.id)
+        if (markError) throw markError
+      }
 
       router.push("/dashboard")
     } catch (err) {
@@ -126,10 +208,10 @@ export default function LoginPage() {
                 </svg>
               </div>
               <h2 className="font-display text-2xl font-bold text-orendt-black tracking-tight">
-                Passwort ändern
+                {isRecoveryFlow ? "Neues Passwort setzen" : "Passwort ändern"}
               </h2>
               <p className="font-display text-[11px] text-orendt-gray-400 uppercase tracking-[0.2em] mt-2">
-                Bitte lege ein persönliches Passwort fest
+                {isRecoveryFlow ? "Passwort-Reset bestätigen" : "Bitte lege ein persönliches Passwort fest"}
               </p>
             </div>
 
@@ -231,20 +313,22 @@ export default function LoginPage() {
                 />
               </div>
 
-              <div>
-                <label className="block text-[9px] sm:text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-[0.2em] mb-2 sm:mb-3 ml-1">
-                  Passwort
-                </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  minLength={6}
-                  className="w-full px-5 py-3.5 sm:px-6 sm:py-4 bg-orendt-gray-50 border border-orendt-gray-100 rounded-2xl text-orendt-black font-body text-base placeholder:text-orendt-gray-300 focus:border-orendt-black focus:ring-4 focus:ring-orendt-black/5 transition-all outline-none"
-                />
-              </div>
+              {!isForgotPasswordMode && (
+                <div>
+                  <label className="block text-[9px] sm:text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-[0.2em] mb-2 sm:mb-3 ml-1">
+                    Passwort
+                  </label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    required={!isForgotPasswordMode}
+                    minLength={6}
+                    className="w-full px-5 py-3.5 sm:px-6 sm:py-4 bg-orendt-gray-50 border border-orendt-gray-100 rounded-2xl text-orendt-black font-body text-base placeholder:text-orendt-gray-300 focus:border-orendt-black focus:ring-4 focus:ring-orendt-black/5 transition-all outline-none"
+                  />
+                </div>
+              )}
 
               {isSignUp && (
                 <div className="animate-fade-in">
@@ -292,6 +376,34 @@ export default function LoginPage() {
                 </div>
               )}
 
+              {successMessage && !showPasswordChange && (
+                <div className="px-5 py-4 bg-green-500/5 border border-green-500/10 rounded-2xl text-green-700 text-sm font-body">
+                  {successMessage}
+                </div>
+              )}
+
+              {!isSignUp && !isForgotPasswordMode && (
+                <button
+                  type="button"
+                  onClick={openForgotPasswordMode}
+                  disabled={loading}
+                  className="w-full text-right text-[10px] sm:text-[11px] font-display font-bold uppercase tracking-[0.22em] text-orendt-gray-400 hover:text-orendt-black transition-colors disabled:opacity-50"
+                >
+                  Passwort vergessen?
+                </button>
+              )}
+
+              {isForgotPasswordMode && (
+                <button
+                  type="button"
+                  onClick={closeForgotPasswordMode}
+                  disabled={loading}
+                  className="w-full text-right text-[10px] sm:text-[11px] font-display font-bold uppercase tracking-[0.22em] text-orendt-gray-400 hover:text-orendt-black transition-colors disabled:opacity-50"
+                >
+                  Zurück zum Login
+                </button>
+              )}
+
               <button
                 type="submit"
                 disabled={loading || (isSignUp && !privacyAccepted)}
@@ -302,13 +414,14 @@ export default function LoginPage() {
                     <span className="w-4 h-4 border-2 border-orendt-accent/20 border-t-orendt-accent rounded-full animate-spin" />
                     Authentication...
                   </span>
-                ) : isSignUp ? "Create Account" : "Let me in"}
+                ) : isForgotPasswordMode ? "Reset-Link senden" : isSignUp ? "Create Account" : "Let me in"}
               </button>
             </form>
 
             <div className="mt-8 sm:mt-10 text-center border-t border-orendt-gray-50 pt-6 sm:pt-8">
               <button
                 onClick={() => { setIsSignUp(!isSignUp); setError("") }}
+                disabled={isRecoveryFlow || isForgotPasswordMode}
                 className="text-orendt-gray-400 hover:text-orendt-black text-[10px] sm:text-[11px] font-display font-bold uppercase tracking-[0.3em] transition-colors"
               >
                 {isSignUp ? "Already registered?" : "New here? Register"}

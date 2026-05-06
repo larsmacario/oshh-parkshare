@@ -84,6 +84,11 @@ export default function ParkingOverview({ user, onBook }) {
     zones[spot.zone].push(spot)
   })
 
+  const sortedZoneEntries = Object.entries(zones).map(([zone, zoneSpots]) => [
+    zone,
+    [...zoneSpots].sort(compareSpotsByLabel),
+  ])
+
   const counts = {
     available: spots.filter((s) => s.status === "available").length,
     reserved: spots.filter((s) => s.status === "reserved").length,
@@ -145,7 +150,7 @@ export default function ParkingOverview({ user, onBook }) {
         </div>
       ) : (
         <div className="space-y-10">
-          {Object.entries(zones).map(([zone, zoneSpots]) => (
+          {sortedZoneEntries.map(([zone, zoneSpots]) => (
             <div key={zone}>
               <div className="flex items-center gap-4 mb-4">
                 <h3 className="font-display text-[10px] font-bold uppercase tracking-[0.2em] text-orendt-gray-400">
@@ -249,4 +254,14 @@ function StatusCounter({ label, count, color }) {
       <span className="text-[9px] font-display font-bold uppercase tracking-wider text-orendt-gray-400 mt-2 text-center">{label}</span>
     </div>
   )
+}
+
+function compareSpotsByLabel(a, b) {
+  const aLabel = a?.label || ""
+  const bLabel = b?.label || ""
+
+  return aLabel.localeCompare(bLabel, "de", {
+    numeric: true,
+    sensitivity: "base",
+  })
 }

@@ -275,6 +275,8 @@ function SpotsTab({ user, spots, assignments, todayAvailable, profiles, onRefres
     }
   })
 
+  const sortedSpots = [...spots].sort(compareSpotsByLabel)
+
   async function handleAdd() {
     if (!newLabel.trim()) return
     setAdding(true)
@@ -315,7 +317,7 @@ function SpotsTab({ user, spots, assignments, todayAvailable, profiles, onRefres
     await onRefresh(true)
   }
 
-  async function handleToggleRecurring(spotId, weekday) {
+  async function handleToggleRecurring(spotId, weekday, ownerId = null) {
     const key = `${spotId}-${weekday}`
     if (recurringLoadingKeys[key]) return
 
@@ -347,7 +349,7 @@ function SpotsTab({ user, spots, assignments, todayAvailable, profiles, onRefres
         [spotId]: { ...(prev[spotId] || {}), [weekday]: optimistic },
       }))
 
-      const { data, error } = await addRecurringAvailability(spotId, user.id, weekday)
+      const { data, error } = await addRecurringAvailability(spotId, ownerId || user.id, weekday)
       if (error) {
         setRecurringBySpot((prev) => {
           const next = { ...prev }
@@ -409,7 +411,7 @@ function SpotsTab({ user, spots, assignments, todayAvailable, profiles, onRefres
 
       {/* Spots grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {spots.map((spot, i) => {
+        {sortedSpots.map((spot, i) => {
           const isEditing = editingId === spot.id
           const spotAssignments = assignmentsBySpot[spot.id] || []
           const spotOwnerIds = new Set(spotAssignments.map((a) => a.user?.id).filter(Boolean))
@@ -543,10 +545,11 @@ function SpotsTab({ user, spots, assignments, todayAvailable, profiles, onRefres
                       const isActive = !!recurringBySpot[spot.id]?.[day.value]
                       const key = `${spot.id}-${day.value}`
                       const isLoadingDay = !!recurringLoadingKeys[key]
+                      const primaryOwnerId = spotAssignments[0]?.user?.id || null
                       return (
                         <button
                           key={day.value}
-                          onClick={() => handleToggleRecurring(spot.id, day.value)}
+                          onClick={() => handleToggleRecurring(spot.id, day.value, primaryOwnerId)}
                           disabled={isLoadingDay}
                           className={`h-9 rounded-xl border-2 text-[10px] font-display font-bold uppercase tracking-widest transition-all ${isActive
                             ? "bg-orendt-black border-orendt-black text-orendt-accent"
@@ -788,6 +791,16 @@ function formatDateTime(dateString) {
     timeStyle: "short",
     timeZone: "Europe/Berlin",
   }).format(date)
+}
+
+function compareSpotsByLabel(a, b) {
+  const aLabel = a?.label || ""
+  const bLabel = b?.label || ""
+
+  return aLabel.localeCompare(bLabel, "de", {
+    numeric: true,
+    sensitivity: "base",
+  })
 }
 
 async function parseApiResponse(res) {
