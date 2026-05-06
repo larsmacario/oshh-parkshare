@@ -25,6 +25,7 @@ export default function LoginPage() {
   const [passwordChangeUser, setPasswordChangeUser] = useState(null)
   const [isRecoveryFlow, setIsRecoveryFlow] = useState(false)
   const [isForgotPasswordMode, setIsForgotPasswordMode] = useState(false)
+  const [isCheckingRecovery, setIsCheckingRecovery] = useState(true)
 
   const router = useRouter()
 
@@ -38,13 +39,38 @@ export default function LoginPage() {
   }
 
   useEffect(() => {
-    const queryParams = new URLSearchParams(window.location.search)
-    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""))
-    const queryType = queryParams.get("type")
-    const hashType = hashParams.get("type")
+    let active = true
 
-    if (queryType === "recovery" || hashType === "recovery") {
-      activateRecoveryMode()
+    async function initRecoveryFlow() {
+      const queryParams = new URLSearchParams(window.location.search)
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""))
+      const queryType = queryParams.get("type")
+      const hashType = hashParams.get("type")
+      const flow = queryParams.get("flow")
+      const code = queryParams.get("code")
+
+      // Case 1: Supabase redirect already contains explicit recovery marker
+      if (queryType === "recovery" || hashType === "recovery" || flow === "recovery") {
+        if (active) activateRecoveryMode()
+        if (active) setIsCheckingRecovery(false)
+        return
+      }
+
+      // Case 2: PKCE flow -> exchange one-time code for a session first
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code)
+        if (!error && active) {
+          activateRecoveryMode()
+        }
+      }
+
+      if (active) setIsCheckingRecovery(false)
+    }
+
+    initRecoveryFlow()
+
+    return () => {
+      active = false
     }
   }, [])
 
@@ -124,7 +150,7 @@ export default function LoginPage() {
 
     setLoading(true)
     try {
-      const redirectTo = `${window.location.origin}/login`
+      const redirectTo = `${window.location.origin}/login?flow=recovery`
       const { error: resetError } = await requestPasswordReset(normalizedEmail, redirectTo)
       if (resetError) throw resetError
       setSuccessMessage("Wenn ein Konto mit dieser E-Mail existiert, wurde ein Passwort-Reset-Link versendet.")
@@ -283,6 +309,11 @@ export default function LoginPage() {
 
           <div className="bg-white p-6 sm:p-8 md:p-12 rounded-[2rem] sm:rounded-[2.5rem] border border-orendt-gray-100 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.08)] animate-scale-in">
             <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
+              {isCheckingRecovery && (
+                <div className="px-5 py-4 bg-orendt-gray-50 border border-orendt-gray-100 rounded-2xl text-orendt-gray-500 text-sm font-body">
+                  Prüfe Passwort-Reset-Link...
+                </div>
+              )}
               {isSignUp && (
                 <div className="animate-fade-in">
                   <label className="block text-[9px] sm:text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-[0.2em] mb-2 sm:mb-3 ml-1">
