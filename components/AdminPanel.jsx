@@ -21,7 +21,7 @@ import {
   deleteUserByAdmin,
   updateUserRoleByAdmin,
   updateUserByAdmin,
-  togglePermanentRelease,
+  releaseSpotsMultiple,
 } from "@/lib/supabase"
 import { getToday } from "@/lib/dates"
 
@@ -29,6 +29,7 @@ import { getToday } from "@/lib/dates"
 const chartIcon = <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
 const gridIcon = <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>
 const usersIcon = <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>
+const absencesIcon = <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M8 2v4" /><path d="M16 2v4" /><rect width="18" height="18" x="3" y="4" rx="2" /><path d="M3 10h18" /></svg>
 
 const settingsIcon = <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
 
@@ -70,6 +71,7 @@ export default function AdminPanel({ user }) {
     { id: "overview", label: "Übersicht", icon: chartIcon },
     { id: "spots", label: "Parkplätze", icon: gridIcon },
     { id: "users", label: "Mitarbeiter", icon: usersIcon },
+    { id: "absences", label: "Abwesenheiten", icon: absencesIcon },
     { id: "settings", label: "Einstellungen", icon: settingsIcon },
   ]
 
@@ -103,13 +105,16 @@ export default function AdminPanel({ user }) {
             {tab === "overview" && <OverviewTab stats={stats} todayReservations={todayReservations} todayAvailable={todayAvailable} />}
             {tab === "spots" && (
               <SpotsTab
+                user={user}
                 spots={spots}
                 assignments={assignments}
+                todayAvailable={todayAvailable}
                 profiles={profiles.filter((p) => p.role === "owner" || p.role === "admin")}
                 onRefresh={loadData}
               />
             )}
             {tab === "users" && <UsersTab profiles={profiles} onRefresh={loadData} />}
+            {tab === "absences" && <AbsencesTab />}
             {tab === "settings" && <SettingsTab />}
           </div>
         )}
@@ -220,7 +225,7 @@ function OverviewTab({ stats, todayReservations, todayAvailable }) {
 
 // ─── Spots Tab ──────────────────────────────────────────────────
 
-function SpotsTab({ spots, assignments, profiles, onRefresh }) {
+function SpotsTab({ user, spots, assignments, todayAvailable, profiles, onRefresh }) {
   const [newLabel, setNewLabel] = useState("")
   const [newZone, setNewZone] = useState("Hauptparkplatz")
   const [adding, setAdding] = useState(false)
@@ -228,8 +233,7 @@ function SpotsTab({ spots, assignments, profiles, onRefresh }) {
   const [editLabel, setEditLabel] = useState("")
   const [editZone, setEditZone] = useState("")
   const [saving, setSaving] = useState(false)
-  const [permanentLoading, setPermanentLoading] = useState(null) // spotId being toggled
-  const [localPermanent, setLocalPermanent] = useState({}) // optimistic state: { [spotId]: bool }
+  const [releasingTodaySpotId, setReleasingTodaySpotId] = useState(null)
 
   const assignmentsBySpot = {}
   assignments.forEach((a) => {
@@ -271,14 +275,11 @@ function SpotsTab({ spots, assignments, profiles, onRefresh }) {
     await onRefresh(true)
   }
 
-  async function handleTogglePermanent(spotId, currentValue) {
-    const next = !currentValue
-    // Optimistic UI update
-    setLocalPermanent((prev) => ({ ...prev, [spotId]: next }))
-    setPermanentLoading(spotId)
-    await togglePermanentRelease(spotId, next)
-    setPermanentLoading(null)
-    // Silently refresh to sync DB state
+  async function handleReleaseToday(spotId) {
+    const today = getToday()
+    setReleasingTodaySpotId(spotId)
+    await releaseSpotsMultiple(spotId, user.id, [today])
+    setReleasingTodaySpotId(null)
     await onRefresh(true)
   }
 
@@ -323,6 +324,8 @@ function SpotsTab({ spots, assignments, profiles, onRefresh }) {
           const isEditing = editingId === spot.id
           const spotAssignments = assignmentsBySpot[spot.id] || []
           const spotOwnerIds = new Set(spotAssignments.map((a) => a.user?.id).filter(Boolean))
+          const isAvailableToday = (todayAvailable || []).some((a) => a.spot_id === spot.id)
+          const isReleasingToday = releasingTodaySpotId === spot.id
 
           return (
             <div
@@ -421,48 +424,26 @@ function SpotsTab({ spots, assignments, profiles, onRefresh }) {
                   </div>
                 </div>
 
-                {/* Permanent release toggle */}
-                {(() => {
-                  const isPermanent = spot.id in localPermanent
-                    ? localPermanent[spot.id]
-                    : spot.is_permanently_released
-                  const isToggling = permanentLoading === spot.id
-                  return (
-                    <button
-                      onClick={() => handleTogglePermanent(spot.id, isPermanent)}
-                      disabled={isToggling}
-                      className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border-2 transition-all duration-200 group ${isPermanent
-                          ? "bg-emerald-50 border-emerald-300 hover:border-emerald-400"
-                          : "bg-orendt-gray-50 border-orendt-gray-100 hover:border-orendt-gray-300"
-                        } disabled:opacity-50`}
-                      title={isPermanent ? "Dauerfreigabe deaktivieren" : "Dauerhaft freigeben"}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <span className="text-base leading-none">{isPermanent ? "🔓" : "🔒"}</span>
-                        <div className="text-left">
-                          <span className={`block text-[10px] font-display font-bold uppercase tracking-widest ${isPermanent ? "text-emerald-700" : "text-orendt-gray-400"
-                            }`}>
-                            Dauerhaft freigegeben
-                          </span>
-                          {isPermanent && (
-                            <span className="block text-[9px] font-display text-emerald-500 uppercase tracking-wider mt-0.5">Aktiv · Jeden Tag buchbar</span>
-                          )}
-                        </div>
-                      </div>
-                      {/* Toggle switch */}
-                      <div className={`relative w-10 h-5 rounded-full transition-colors duration-300 flex-shrink-0 ${isPermanent ? "bg-emerald-500" : "bg-orendt-gray-200"
-                        }`}>
-                        <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-300 ${isPermanent ? "translate-x-5" : "translate-x-0"
-                          }`} />
-                        {isToggling && (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          </div>
-                        )}
-                      </div>
-                    </button>
-                  )
-                })()}
+                <button
+                  onClick={() => handleReleaseToday(spot.id)}
+                  disabled={isReleasingToday || isAvailableToday}
+                  className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border-2 transition-all duration-200 ${isAvailableToday
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                    : "bg-orendt-gray-50 border-orendt-gray-100 text-orendt-black hover:border-orendt-black"
+                    } disabled:opacity-60`}
+                  title={isAvailableToday ? "Heute bereits freigegeben" : "Für heute freigeben"}
+                >
+                  {isReleasingToday ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      <span className="text-[10px] font-display font-bold uppercase tracking-widest">Wird freigegeben...</span>
+                    </>
+                  ) : isAvailableToday ? (
+                    <span className="text-[10px] font-display font-bold uppercase tracking-widest">Heute freigegeben</span>
+                  ) : (
+                    <span className="text-[10px] font-display font-bold uppercase tracking-widest">Heute freigeben</span>
+                  )}
+                </button>
 
               </div>
             </div>
@@ -674,6 +655,164 @@ function UsersTab({ profiles, onRefresh }) {
           <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-orendt-gray-100">
             <p className="text-orendt-gray-400 font-display text-[11px] font-bold uppercase tracking-[0.2em]">Noch keine Mitarbeiter registriert</p>
           </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function formatDateTime(dateString) {
+  if (!dateString) return "Noch kein Abgleich"
+  const date = new Date(dateString)
+  return new Intl.DateTimeFormat("de-DE", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "Europe/Berlin",
+  }).format(date)
+}
+
+async function parseApiResponse(res) {
+  const text = await res.text()
+  let payload = {}
+
+  if (text) {
+    try {
+      payload = JSON.parse(text)
+    } catch {
+      payload = { error: "Ungültige API-Antwort" }
+    }
+  }
+
+  if (!res.ok) {
+    throw new Error(payload.error || `API-Fehler (${res.status})`)
+  }
+
+  return payload
+}
+
+function AbsencesTab() {
+  const [loading, setLoading] = useState(true)
+  const [syncing, setSyncing] = useState(false)
+  const [error, setError] = useState("")
+  const [rows, setRows] = useState([])
+  const [week, setWeek] = useState(null)
+  const [lastSyncAt, setLastSyncAt] = useState(null)
+
+  const loadAbsences = useCallback(async () => {
+    setLoading(true)
+    setError("")
+    try {
+      const { data: { session } } = await getSession()
+      const res = await fetch("/api/admin/personio-absences", {
+        method: "GET",
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+        credentials: "omit",
+      })
+      const payload = await parseApiResponse(res)
+      setRows(payload.rows || [])
+      setWeek(payload.week || null)
+      setLastSyncAt(payload.lastSyncAt || null)
+    } catch (err) {
+      setError(err.message)
+    }
+    setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    loadAbsences()
+  }, [loadAbsences])
+
+  async function handleManualSync() {
+    setSyncing(true)
+    setError("")
+    try {
+      const { data: { session } } = await getSession()
+      const res = await fetch("/api/admin/personio-sync", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+        credentials: "omit",
+      })
+      await parseApiResponse(res)
+      await loadAbsences()
+    } catch (err) {
+      setError(err.message)
+    }
+    setSyncing(false)
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="p-8 bg-white rounded-[2rem] border-2 border-orendt-gray-100 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h3 className="font-display text-sm font-bold text-orendt-black uppercase tracking-widest">Personio Abwesenheiten (Aktuelle Woche)</h3>
+            <p className="text-[11px] font-display text-orendt-gray-400 mt-2">
+              Letzter erfolgreicher Abgleich: <span className="font-bold text-orendt-black">{formatDateTime(lastSyncAt)}</span>
+            </p>
+            {week && (
+              <p className="text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-widest mt-1">
+                Woche: {week.startDate} bis {week.endDate}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={handleManualSync}
+            disabled={syncing}
+            className="px-8 py-3.5 bg-orendt-black text-orendt-accent font-display text-[11px] font-bold uppercase tracking-[0.2em] rounded-2xl hover:opacity-90 disabled:opacity-30 transition-all shadow-lg active:scale-95"
+          >
+            {syncing ? "Abgleich läuft..." : "Jetzt Abgleichen"}
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-2xl">
+          <p className="text-[11px] font-display font-bold text-red-600 uppercase tracking-wider">{error}</p>
+        </div>
+      )}
+
+      <div className="p-6 bg-white rounded-[2rem] border-2 border-orendt-gray-100 shadow-sm overflow-x-auto">
+        {loading ? (
+          <div className="flex items-center justify-center py-24">
+            <div className="w-8 h-8 border-2 border-orendt-gray-100 border-t-orendt-black rounded-full animate-spin" />
+          </div>
+        ) : rows.length === 0 ? (
+          <p className="text-[11px] font-display font-bold text-orendt-gray-400 uppercase tracking-widest text-center py-12">
+            Keine Owner gefunden
+          </p>
+        ) : (
+          <table className="w-full min-w-[700px]">
+            <thead>
+              <tr className="border-b border-orendt-gray-100">
+                <th className="text-left py-3 text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-widest">Owner</th>
+                {(week?.days || []).map((day) => (
+                  <th key={day.date} className="text-center py-3 text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-widest">
+                    {day.label} <span className="text-orendt-gray-300">{day.date.slice(5)}</span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.ownerId} className="border-b border-orendt-gray-50">
+                  <td className="py-4">
+                    <p className="font-display text-sm font-bold text-orendt-black">{row.ownerName}</p>
+                    <p className="text-[10px] font-display font-bold text-orendt-gray-300 uppercase tracking-widest">{row.ownerEmail}</p>
+                  </td>
+                  {row.days.map((day) => (
+                    <td key={day.date} className="py-4 text-center">
+                      <span className={`inline-flex px-3 py-1 rounded-full text-[10px] font-display font-bold uppercase tracking-widest border ${day.isAbsent
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : "bg-orendt-gray-50 text-orendt-gray-400 border-orendt-gray-200"
+                        }`}>
+                        {day.isAbsent ? "Abwesend" : "Anwesend"}
+                      </span>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
     </div>

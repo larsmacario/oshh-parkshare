@@ -85,7 +85,7 @@ export default function OwnerCalendar({ user }) {
       const reserved = new Set()
       const checks = await Promise.all(
         (avails || []).map(async (a) => {
-          const { data: res } = await getReservationsForDate(a.date)
+          const { data: res } = await getReservationsForDate(a.date, a.spot_id)
           return { date: a.date, hasReservation: res?.length > 0 }
         })
       )

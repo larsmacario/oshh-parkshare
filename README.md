@@ -27,6 +27,12 @@ Trage deine Supabase-Werte ein:
 ```
 NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbG...
+SUPABASE_SERVICE_ROLE_KEY=eyJhbG... (nur serverseitig)
+PERSONIO_CLIENT_ID=xxxxx
+PERSONIO_CLIENT_SECRET=xxxxx
+CRON_SECRET=xxxxx
+# Optional:
+# PERSONIO_BASE_URL=https://api.personio.de/v1
 ```
 
 ### 4. Starten
@@ -122,6 +128,42 @@ vercel
 ```
 
 Environment Variables in den Vercel-Projekteinstellungen hinterlegen.
+
+## Automatischer Personio-Abgleich (05:00)
+
+Die App enthält einen täglichen Sync unter `/api/cron/personio-sync`.
+
+- **Schedule:** täglich um `05:00` (Vercel Cron via `vercel.json`)
+- **Quelle:** Personio Public API (`/auth` + `/company/time-offs`)
+- **Matching:** `Personio employee.email` gegen `profiles.email` (lowercase/trim)
+- **Scope:** nur `owner`-Profile mit aktiver Platzzuweisung (`spot_assignments`)
+- **Regel:** nur **ganztägige** und **approved** Abwesenheiten für **heute**
+- **Ergebnis:** idempotente Freigabe in `availabilities` über `onConflict: spot_id,date`
+
+### Route-Schutz
+
+Wenn `CRON_SECRET` gesetzt ist, erwartet die Route:
+
+```
+Authorization: Bearer <CRON_SECRET>
+```
+
+### Manuelle Verifikation (Dry-Run)
+
+1. Testdaten in Personio für heute mit ganztägiger Abwesenheit anlegen.
+2. Sicherstellen, dass die Person als `owner` in `profiles` existiert und eine aktive `spot_assignments`-Zuordnung hat.
+3. Route manuell aufrufen (z. B. Postman/cURL) mit `Authorization` Header.
+4. In der Response prüfen:
+   - `matchedOwners > 0`
+   - `releasedRows > 0`
+5. Bei erneutem Aufruf dürfen keine Duplikate entstehen (idempotent über Upsert).
+
+### Typische Fehlerbilder
+
+- **Keine Matches:** E-Mail in Personio und `profiles.email` weichen ab.
+- **Keine Freigaben trotz Match:** keine aktive Spot-Zuweisung für den Owner.
+- **401:** `CRON_SECRET` fehlt/falsch im Header.
+- **500 Personio:** Credentials falsch oder Personio API temporär nicht verfügbar.
 
 ## Nächste Schritte (Phase 2)
 
