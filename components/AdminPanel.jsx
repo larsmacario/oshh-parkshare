@@ -22,6 +22,9 @@ import {
   updateUserRoleByAdmin,
   updateUserByAdmin,
   releaseSpotsMultiple,
+  getRecurringAvailabilitiesForSpots,
+  addRecurringAvailability,
+  removeRecurringAvailability,
 } from "@/lib/supabase"
 import { getToday } from "@/lib/dates"
 
@@ -226,6 +229,14 @@ function OverviewTab({ stats, todayReservations, todayAvailable }) {
 // ─── Spots Tab ──────────────────────────────────────────────────
 
 function SpotsTab({ user, spots, assignments, todayAvailable, profiles, onRefresh }) {
+  const WEEKDAYS = [
+    { value: 1, label: "Mo" },
+    { value: 2, label: "Di" },
+    { value: 3, label: "Mi" },
+    { value: 4, label: "Do" },
+    { value: 5, label: "Fr" },
+  ]
+
   const [newLabel, setNewLabel] = useState("")
   const [newZone, setNewZone] = useState("Hauptparkplatz")
   const [adding, setAdding] = useState(false)
@@ -234,6 +245,27 @@ function SpotsTab({ user, spots, assignments, todayAvailable, profiles, onRefres
   const [editZone, setEditZone] = useState("")
   const [saving, setSaving] = useState(false)
   const [releasingTodaySpotId, setReleasingTodaySpotId] = useState(null)
+  const [recurringBySpot, setRecurringBySpot] = useState({})
+  const [recurringLoadingKeys, setRecurringLoadingKeys] = useState({})
+
+  useEffect(() => {
+    let mounted = true
+    async function loadRecurring() {
+      const spotIds = (spots || []).map((s) => s.id)
+      const { data } = await getRecurringAvailabilitiesForSpots(spotIds)
+      if (!mounted) return
+
+      const map = {}
+      ; (data || []).forEach((row) => {
+        if (!map[row.spot_id]) map[row.spot_id] = {}
+        map[row.spot_id][row.weekday] = row
+      })
+      setRecurringBySpot(map)
+    }
+
+    loadRecurring()
+    return () => { mounted = false }
+  }, [spots])
 
   const assignmentsBySpot = {}
   assignments.forEach((a) => {
@@ -280,6 +312,63 @@ function SpotsTab({ user, spots, assignments, todayAvailable, profiles, onRefres
     setReleasingTodaySpotId(spotId)
     await releaseSpotsMultiple(spotId, user.id, [today])
     setReleasingTodaySpotId(null)
+    await onRefresh(true)
+  }
+
+  async function handleToggleRecurring(spotId, weekday) {
+    const key = `${spotId}-${weekday}`
+    if (recurringLoadingKeys[key]) return
+
+    const current = recurringBySpot[spotId]?.[weekday] || null
+    setRecurringLoadingKeys((prev) => ({ ...prev, [key]: true }))
+
+    if (current) {
+      // Optimistic OFF
+      setRecurringBySpot((prev) => {
+        const next = { ...prev }
+        const spotMap = { ...(next[spotId] || {}) }
+        delete spotMap[weekday]
+        next[spotId] = spotMap
+        return next
+      })
+
+      const { error } = await removeRecurringAvailability(current.id)
+      if (error) {
+        setRecurringBySpot((prev) => ({
+          ...prev,
+          [spotId]: { ...(prev[spotId] || {}), [weekday]: current },
+        }))
+      }
+    } else {
+      // Optimistic ON
+      const optimistic = { id: `optimistic-${key}`, spot_id: spotId, weekday, owner_id: user.id }
+      setRecurringBySpot((prev) => ({
+        ...prev,
+        [spotId]: { ...(prev[spotId] || {}), [weekday]: optimistic },
+      }))
+
+      const { data, error } = await addRecurringAvailability(spotId, user.id, weekday)
+      if (error) {
+        setRecurringBySpot((prev) => {
+          const next = { ...prev }
+          const spotMap = { ...(next[spotId] || {}) }
+          delete spotMap[weekday]
+          next[spotId] = spotMap
+          return next
+        })
+      } else if (data) {
+        setRecurringBySpot((prev) => ({
+          ...prev,
+          [spotId]: { ...(prev[spotId] || {}), [weekday]: data },
+        }))
+      }
+    }
+
+    setRecurringLoadingKeys((prev) => {
+      const next = { ...prev }
+      delete next[key]
+      return next
+    })
     await onRefresh(true)
   }
 
@@ -444,6 +533,36 @@ function SpotsTab({ user, spots, assignments, todayAvailable, profiles, onRefres
                     <span className="text-[10px] font-display font-bold uppercase tracking-widest">Heute freigeben</span>
                   )}
                 </button>
+
+                <div className="pt-1">
+                  <p className="text-[9px] font-display font-bold text-orendt-gray-400 uppercase tracking-[0.2em] mb-2 ml-1">
+                    Dauerhaft freigeben (Mo-Fr)
+                  </p>
+                  <div className="grid grid-cols-5 gap-1.5">
+                    {WEEKDAYS.map((day) => {
+                      const isActive = !!recurringBySpot[spot.id]?.[day.value]
+                      const key = `${spot.id}-${day.value}`
+                      const isLoadingDay = !!recurringLoadingKeys[key]
+                      return (
+                        <button
+                          key={day.value}
+                          onClick={() => handleToggleRecurring(spot.id, day.value)}
+                          disabled={isLoadingDay}
+                          className={`h-9 rounded-xl border-2 text-[10px] font-display font-bold uppercase tracking-widest transition-all ${isActive
+                            ? "bg-orendt-black border-orendt-black text-orendt-accent"
+                            : "bg-orendt-gray-50 border-orendt-gray-100 text-orendt-gray-500 hover:border-orendt-black hover:text-orendt-black"
+                            } disabled:opacity-60`}
+                          title={isActive ? `${day.label} dauerhaft aktiv` : `${day.label} dauerhaft freigeben`}
+                        >
+                          {isLoadingDay ? "..." : day.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <p className="text-[8px] font-display text-orendt-gray-400 uppercase tracking-widest mt-2 ml-1">
+                    Wiederholt sich jede Woche
+                  </p>
+                </div>
 
               </div>
             </div>
