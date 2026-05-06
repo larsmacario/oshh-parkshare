@@ -6,6 +6,7 @@ Intelligentes Parkplatz-Sharing für das Orendt Studios Team. Ermöglicht es fes
 ## Scope
 - User Roles: Admin, Owner (Platzinhaber), Flexible (Bucher).
 - Core Features: Availability management, Booking system, Admin dashboard.
+- Integrations: Personio Absence Sync (daily + manual admin trigger).
 - Branding: Orendt Studios Branding (Black/White + Neon Accent).
 
 ## UI/UX Direction

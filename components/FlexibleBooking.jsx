@@ -51,12 +51,14 @@ function ParkingSpotBadge({ label, variant }) {
 
 export default function FlexibleBooking({ user }) {
   const today = getToday()
-  const [firstAvailableSpot, setFirstAvailableSpot] = useState(null)
+  const [availableSpots, setAvailableSpots] = useState([])
+  const [currentSpotIndex, setCurrentSpotIndex] = useState(0)
   const [myTodayReservation, setMyTodayReservation] = useState(null)
   const [loading, setLoading] = useState(true)
   const [booking, setBooking] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [keyBoxPin, setKeyBoxPin] = useState(null)
+  const currentSpot = availableSpots[currentSpotIndex] || null
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -73,15 +75,16 @@ export default function FlexibleBooking({ user }) {
     }
 
     if (!todayRes) {
-      // No booking yet → find first available spot (lowest sort_order)
+      // No booking yet -> load and sort all available spots (lowest sort_order first)
       const { data: available } = await getAvailableSpotsForDate(today)
-      // Sort by spot sort_order (lowest first), then take the first one
       const sorted = (available || []).sort(
         (a, b) => (a.spot?.sort_order ?? 999) - (b.spot?.sort_order ?? 999)
       )
-      setFirstAvailableSpot(sorted.length > 0 ? sorted[0] : null)
+      setAvailableSpots(sorted)
+      setCurrentSpotIndex(0)
     } else {
-      setFirstAvailableSpot(null)
+      setAvailableSpots([])
+      setCurrentSpotIndex(0)
     }
 
     setLoading(false)
@@ -104,11 +107,11 @@ export default function FlexibleBooking({ user }) {
   }
 
   async function handleBook() {
-    if (!firstAvailableSpot || booking) return
+    if (!currentSpot || booking) return
     setBooking(true)
     const { error } = await reserveSpot(
-      firstAvailableSpot.spot_id,
-      firstAvailableSpot.id,
+      currentSpot.spot_id,
+      currentSpot.id,
       user.id,
       today
     )
@@ -117,6 +120,11 @@ export default function FlexibleBooking({ user }) {
     }
     await loadData()
     setBooking(false)
+  }
+
+  function handleSkipSpot() {
+    if (availableSpots.length <= 1) return
+    setCurrentSpotIndex((prev) => (prev + 1) % availableSpots.length)
   }
 
   if (loading) {
@@ -195,7 +203,7 @@ export default function FlexibleBooking({ user }) {
   }
 
   // State 2: A spot is available
-  if (firstAvailableSpot) {
+  if (currentSpot) {
     return (
       <div className="group bg-white p-8 md:p-10 rounded-3xl border border-orendt-gray-200 shadow-sm animate-fade-in">
         <div className="text-center">
@@ -204,7 +212,7 @@ export default function FlexibleBooking({ user }) {
           </p>
 
           <ParkingSpotBadge
-            label={firstAvailableSpot.spot?.label}
+            label={currentSpot.spot?.label}
             variant="available"
           />
 
@@ -213,30 +221,41 @@ export default function FlexibleBooking({ user }) {
           </h2>
 
           <p className="text-sm text-orendt-gray-500 font-body max-w-sm mx-auto leading-relaxed mb-2">
-            Bereich <span className="font-bold text-orendt-black">{firstAvailableSpot.spot?.zone}</span>
-            {firstAvailableSpot.released_by_user && (
-              <> · Freigegeben von <span className="font-bold text-orendt-black">{firstAvailableSpot.released_by_user?.full_name?.split(" ")[0]}</span></>
+            Bereich <span className="font-bold text-orendt-black">{currentSpot.spot?.zone}</span>
+            {currentSpot.released_by_user && (
+              <> · Freigegeben von <span className="font-bold text-orendt-black">{currentSpot.released_by_user?.full_name?.split(" ")[0]}</span></>
             )}
           </p>
 
-          <p className="text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-widest mb-8">
+          <p className="text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-widest mb-6">
             First come, first served
           </p>
 
-          <button
-            onClick={handleBook}
-            disabled={booking}
-            className="w-full sm:w-auto px-12 py-5 bg-orendt-black text-orendt-accent font-display text-sm font-bold uppercase tracking-[0.2em] rounded-2xl hover:opacity-90 active:scale-95 transition-all disabled:opacity-50 shadow-xl hover:shadow-2xl"
-          >
-            {booking ? (
-              <div className="flex items-center justify-center gap-3">
-                <div className="w-4 h-4 border-2 border-orendt-accent/30 border-t-orendt-accent rounded-full animate-spin" />
-                Wird gebucht...
-              </div>
-            ) : (
-              "Platz sichern"
-            )}
-          </button>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            {availableSpots.length > 1 ? (
+              <button
+                onClick={handleSkipSpot}
+                disabled={booking}
+                className="w-full sm:w-auto px-6 py-4 bg-white text-orendt-gray-600 font-display text-xs font-bold uppercase tracking-[0.15em] rounded-2xl border border-orendt-gray-200 hover:border-orendt-gray-400 hover:text-orendt-black active:scale-95 transition-all disabled:opacity-50"
+              >
+                Platz überspringen
+              </button>
+            ) : null}
+            <button
+              onClick={handleBook}
+              disabled={booking}
+              className="w-full sm:w-auto px-12 py-5 bg-orendt-black text-orendt-accent font-display text-sm font-bold uppercase tracking-[0.2em] rounded-2xl hover:opacity-90 active:scale-95 transition-all disabled:opacity-50 shadow-xl hover:shadow-2xl"
+            >
+              {booking ? (
+                <div className="flex items-center justify-center gap-3">
+                  <div className="w-4 h-4 border-2 border-orendt-accent/30 border-t-orendt-accent rounded-full animate-spin" />
+                  Wird gebucht...
+                </div>
+              ) : (
+                "Platz sichern"
+              )}
+            </button>
+          </div>
         </div>
       </div>
     )
