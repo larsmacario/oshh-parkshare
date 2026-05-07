@@ -25,6 +25,7 @@ import {
   getRecurringAvailabilitiesForSpots,
   addRecurringAvailability,
   removeRecurringAvailability,
+  getSpotUsageStats,
 } from "@/lib/supabase"
 import { getToday } from "@/lib/dates"
 
@@ -40,7 +41,11 @@ const settingsIcon = <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
 
 export default function AdminPanel({ user }) {
   const [tab, setTab] = useState("overview")
+  const [statsRangeDays, setStatsRangeDays] = useState(30)
   const [stats, setStats] = useState(null)
+  const [spotStats, setSpotStats] = useState(null)
+  const [spotStatsLoading, setSpotStatsLoading] = useState(false)
+  const [spotStatsError, setSpotStatsError] = useState("")
   const [profiles, setProfiles] = useState([])
   const [spots, setSpots] = useState([])
   const [assignments, setAssignments] = useState([])
@@ -72,25 +77,44 @@ export default function AdminPanel({ user }) {
 
   const tabs = [
     { id: "overview", label: "Übersicht", icon: chartIcon },
+    { id: "statistics", label: "Statistik", icon: chartIcon },
     { id: "spots", label: "Parkplätze", icon: gridIcon },
     { id: "users", label: "Mitarbeiter", icon: usersIcon },
     { id: "absences", label: "Abwesenheiten", icon: absencesIcon },
     { id: "settings", label: "Einstellungen", icon: settingsIcon },
   ]
 
+  useEffect(() => {
+    if (tab !== "statistics") return
+    let active = true
+
+    async function loadSpotStats() {
+      setSpotStatsLoading(true)
+      setSpotStatsError("")
+      const { data, error } = await getSpotUsageStats(statsRangeDays)
+      if (!active) return
+      if (error) {
+        setSpotStatsError(error.message || "Fehler beim Laden der Statistik.")
+        setSpotStats(null)
+      } else {
+        setSpotStats(data)
+      }
+      setSpotStatsLoading(false)
+    }
+
+    loadSpotStats()
+    return () => { active = false }
+  }, [tab, statsRangeDays])
+
   return (
     <div className="space-y-8">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-        <div>
-          <h2 className="font-display text-xl sm:text-2xl font-bold text-orendt-black uppercase tracking-tight">Administration</h2>
-          <p className="text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-widest mt-1">System Management &amp; Control</p>
-        </div>
-        <div className="flex items-center gap-1 bg-white rounded-2xl border-2 border-orendt-gray-100 p-1 shadow-sm overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-1.5">
+      <div className="w-full">
+        <div className="w-full flex items-center gap-1 bg-white rounded-2xl border-2 border-orendt-gray-100 p-1 shadow-sm">
           {tabs.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl font-display text-[9px] sm:text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap ${tab === t.id ? "bg-orendt-black text-orendt-accent shadow-md" : "text-orendt-gray-400 hover:text-orendt-black hover:bg-orendt-gray-50"}`}
+              className={`flex-1 flex items-center justify-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-display text-[9px] sm:text-[10px] font-bold uppercase tracking-widest transition-all ${tab === t.id ? "bg-orendt-black text-orendt-accent shadow-md" : "text-orendt-gray-400 hover:text-orendt-black hover:bg-orendt-gray-50"}`}
             >
               {t.icon}{t.label}
             </button>
@@ -106,6 +130,15 @@ export default function AdminPanel({ user }) {
         ) : (
           <div className="animate-fade-in">
             {tab === "overview" && <OverviewTab stats={stats} todayReservations={todayReservations} todayAvailable={todayAvailable} />}
+            {tab === "statistics" && (
+              <StatisticsTab
+                days={statsRangeDays}
+                onChangeDays={setStatsRangeDays}
+                statsData={spotStats}
+                loading={spotStatsLoading}
+                error={spotStatsError}
+              />
+            )}
             {tab === "spots" && (
               <SpotsTab
                 user={user}
@@ -127,6 +160,94 @@ export default function AdminPanel({ user }) {
         <p className="text-[10px] font-display font-bold text-orendt-gray-300 uppercase tracking-widest">
           Eingeloggt als {user?.email} · Admin-Panel
         </p>
+      </div>
+    </div>
+  )
+}
+
+function StatisticsTab({ days, onChangeDays, statsData, loading, error }) {
+  const rangeOptions = [7, 30, 90]
+  const rows = statsData?.rows || []
+
+  return (
+    <div className="space-y-8">
+      <div className="p-8 bg-white rounded-[2rem] border-2 border-orendt-gray-100 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
+          <div>
+            <h3 className="font-display text-sm font-bold text-orendt-black uppercase tracking-widest">Parkplatz-Statistik</h3>
+            <p className="text-[11px] font-display text-orendt-gray-400 mt-2">
+              Freigaben (manuell, wiederkehrend, permanent) und bestätigte Buchungen pro Parkplatz.
+            </p>
+            {statsData?.startDate && statsData?.endDate && (
+              <p className="text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-widest mt-2">
+                Zeitraum: {statsData.startDate} bis {statsData.endDate}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-1 bg-orendt-gray-50 rounded-2xl border border-orendt-gray-100 p-1">
+            {rangeOptions.map((option) => (
+              <button
+                key={option}
+                onClick={() => onChangeDays(option)}
+                className={`px-4 py-2 rounded-xl font-display text-[10px] font-bold uppercase tracking-widest transition-all ${days === option
+                  ? "bg-orendt-black text-orendt-accent"
+                  : "text-orendt-gray-500 hover:text-orendt-black"
+                  }`}
+              >
+                {option} Tage
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="p-6 bg-white rounded-[2rem] border-2 border-orendt-gray-100 shadow-sm overflow-x-auto">
+        {loading ? (
+          <div className="flex items-center justify-center py-24">
+            <div className="w-8 h-8 border-2 border-orendt-gray-100 border-t-orendt-black rounded-full animate-spin" />
+          </div>
+        ) : error ? (
+          <div className="text-center py-10 border-2 border-dashed border-red-200 rounded-2xl bg-red-50">
+            <p className="text-[11px] font-display font-bold text-red-600 uppercase tracking-[0.2em]">{error}</p>
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="text-center py-10 border-2 border-dashed border-orendt-gray-100 rounded-2xl">
+            <p className="text-[11px] font-display font-bold text-orendt-gray-400 uppercase tracking-[0.2em]">Keine Statistikdaten verfügbar</p>
+          </div>
+        ) : (
+          <table className="w-full min-w-[700px]">
+            <thead>
+              <tr className="border-b border-orendt-gray-100">
+                <th className="text-left py-3 text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-widest">Parkplatz</th>
+                <th className="text-left py-3 text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-widest">Bereich</th>
+                <th className="text-right py-3 text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-widest">Freigegeben</th>
+                <th className="text-right py-3 text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-widest">Gebucht</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.spot_id} className="border-b border-orendt-gray-50">
+                  <td className="py-4">
+                    <span className="font-display text-sm font-bold text-orendt-black">{row.spot_label}</span>
+                  </td>
+                  <td className="py-4">
+                    <span className="text-[11px] font-display font-bold text-orendt-gray-400 uppercase tracking-widest">{row.zone}</span>
+                  </td>
+                  <td className="py-4 text-right">
+                    <span className="inline-flex px-3 py-1 rounded-full text-[10px] font-display font-bold uppercase tracking-widest bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      {row.releases}
+                    </span>
+                  </td>
+                  <td className="py-4 text-right">
+                    <span className="inline-flex px-3 py-1 rounded-full text-[10px] font-display font-bold uppercase tracking-widest bg-orendt-gray-50 text-orendt-black border border-orendt-gray-200">
+                      {row.bookings}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   )
