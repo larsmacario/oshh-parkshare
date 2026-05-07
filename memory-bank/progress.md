@@ -12,6 +12,8 @@
 - Admin-Flow angepasst:
   - Dauerhaft-Option entfernt.
   - "Heute freigeben" direkt im Spots-Tab integriert.
+- Admin-Uebersicht korrigiert:
+  - Freie Plaetze zeigen jetzt immer die aktiven Parkplatz-Owner statt den Nutzer, der die Freigabe erstellt hat.
 
 ## Bekannte Restpunkte
 - Kein direkter Admin-Undo fuer Tagesfreigabe im Spots-Tab.

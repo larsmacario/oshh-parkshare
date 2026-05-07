@@ -169,6 +169,9 @@ function OverviewTab({ stats, todayReservations, todayAvailable }) {
             {todayAvailable.map((avail, i) => {
               const releaseType = avail.is_permanent ? "Dauerfreigabe" : avail.is_recurring ? "Wiederkehrend" : "Manuell"
               const releaseIcon = avail.is_permanent ? "∞" : avail.is_recurring ? "↻" : "✨"
+              const ownerNames = avail.owners?.length
+                ? avail.owners.map((owner) => owner.full_name).join(", ")
+                : ""
               return (
                 <div key={avail.id} className="flex items-center gap-3 p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100 opacity-0 animate-slide-up" style={{ animationDelay: `${i * 60}ms`, animationFillMode: "forwards" }}>
                   <div className="w-14 h-14 rounded-[1.25rem] bg-emerald-100 border border-emerald-200 flex items-center justify-center flex-shrink-0 overflow-hidden">
@@ -178,7 +181,7 @@ function OverviewTab({ stats, todayReservations, todayAvailable }) {
                   </div>
                   <div className="min-w-0 flex-1">
                     <span className="font-display text-sm font-bold text-orendt-black block truncate">
-                      {avail.released_by_user?.full_name || "Kein Inhaber"}
+                      {ownerNames}
                     </span>
                     <span className="text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-wider block truncate">{avail.spot?.zone}</span>
                     <span className="text-[10px] font-display font-bold text-emerald-600 uppercase tracking-wider">{releaseIcon} {releaseType}</span>

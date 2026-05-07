@@ -13,6 +13,9 @@ Stabilisierung der Tagesstatus-Logik und Vereinfachung von Admin-Freigaben.
   - Dauerhaft-Freigabe-Toggle im `AdminPanel` entfernt.
   - Neue Aktion pro Parkplatz: "Heute freigeben".
   - Bereits heute verfuegbare Plaetze werden als "Heute freigegeben" angezeigt und nicht erneut freigegeben.
+- Bugfix Admin-Uebersicht:
+  - "Freie Plaetze Heute" zeigt jetzt aktive Parkplatz-Owner aus `spot_assignments`.
+  - `getAvailableSpotsForDate()` liefert fuer alle Freigabearten ein `owners`-Array.
 
 ## Offene Anschlussarbeiten
 - Optional: Admin-Aktion "Heute wieder besetzen" (Freigabe fuer heute zuruecknehmen).
