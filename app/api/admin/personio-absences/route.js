@@ -80,13 +80,27 @@ export async function GET(request) {
     const weekDays = getWeekDays(startDate)
     const { absences } = await getFullDayAbsencesInRange(startDate, endDate)
 
-    const { data: owners, error: ownersError } = await supabaseAdmin
-      .from("profiles")
-      .select("id, full_name, email, role")
-      .eq("role", "owner")
-      .order("full_name")
+    const { data: activeAssignments, error: assignmentsError } = await supabaseAdmin
+      .from("spot_assignments")
+      .select("user_id, valid_from, valid_until")
+      .lte("valid_from", endDate)
+      .or(`valid_until.is.null,valid_until.gte.${startDate}`)
 
-    if (ownersError) throw new Error(ownersError.message)
+    if (assignmentsError) throw new Error(assignmentsError.message)
+
+    const ownerIds = [...new Set((activeAssignments || []).map((a) => a.user_id))]
+
+    let owners = []
+    if (ownerIds.length > 0) {
+      const { data: profiles, error: ownersError } = await supabaseAdmin
+        .from("profiles")
+        .select("id, full_name, email, role")
+        .in("id", ownerIds)
+        .order("full_name")
+
+      if (ownersError) throw new Error(ownersError.message)
+      owners = profiles || []
+    }
 
     const ownerByEmail = new Map((owners || []).map((o) => [normalizeEmail(o.email), o]))
     const absentDatesByOwnerId = new Map()
