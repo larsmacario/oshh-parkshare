@@ -114,7 +114,7 @@ export default function AdminPanel({ user }) {
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex-1 flex items-center justify-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-display text-[9px] sm:text-[10px] font-bold uppercase tracking-widest transition-all ${tab === t.id ? "bg-orendt-black text-orendt-accent shadow-md" : "text-orendt-gray-400 hover:text-orendt-black hover:bg-orendt-gray-50"}`}
+              className={`flex-1 flex items-center justify-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-display text-[9px] sm:text-[10px] font-bold uppercase tracking-widest transition-all ${tab === t.id ? "bg-orendt-black text-orendt-white shadow-md" : "text-orendt-gray-400 hover:text-orendt-black hover:bg-orendt-gray-50"}`}
             >
               {t.icon}{t.label}
             </button>
@@ -190,7 +190,7 @@ function StatisticsTab({ days, onChangeDays, statsData, loading, error }) {
                 key={option}
                 onClick={() => onChangeDays(option)}
                 className={`px-4 py-2 rounded-xl font-display text-[10px] font-bold uppercase tracking-widest transition-all ${days === option
-                  ? "bg-orendt-black text-orendt-accent"
+                  ? "bg-orendt-black text-orendt-white"
                   : "text-orendt-gray-500 hover:text-orendt-black"
                   }`}
               >
@@ -527,7 +527,7 @@ function SpotsTab({ user, spots, assignments, todayAvailable, profiles, onRefres
               <option>Hauptparkplatz</option>
             </select>
           </div>
-          <button onClick={handleAdd} disabled={adding || !newLabel.trim()} className="w-full md:w-auto px-8 py-4 bg-orendt-black text-orendt-accent font-display text-[11px] font-bold uppercase tracking-[0.2em] rounded-2xl hover:opacity-90 disabled:opacity-30 transition-all shadow-lg active:scale-95">
+          <button onClick={handleAdd} disabled={adding || !newLabel.trim()} className="w-full md:w-auto px-8 py-4 bg-orendt-black text-orendt-white font-display text-[11px] font-bold uppercase tracking-[0.2em] rounded-2xl hover:opacity-90 disabled:opacity-30 transition-all shadow-lg active:scale-95">
             {adding ? "Hinzufügen..." : "Parkplatz Hinzufügen"}
           </button>
         </div>
@@ -676,7 +676,7 @@ function SpotsTab({ user, spots, assignments, todayAvailable, profiles, onRefres
                           onClick={() => handleToggleRecurring(spot.id, day.value, primaryOwnerId)}
                           disabled={isLoadingDay}
                           className={`h-9 rounded-xl border-2 text-[10px] font-display font-bold uppercase tracking-widest transition-all ${isActive
-                            ? "bg-orendt-black border-orendt-black text-orendt-accent"
+                            ? "bg-orendt-black border-orendt-black text-orendt-white"
                             : "bg-orendt-gray-50 border-orendt-gray-100 text-orendt-gray-500 hover:border-orendt-black hover:text-orendt-black"
                             } disabled:opacity-60`}
                           title={isActive ? `${day.label} dauerhaft aktiv` : `${day.label} dauerhaft freigeben`}
@@ -785,7 +785,7 @@ function UsersTab({ profiles, onRefresh }) {
       {/* Add user form */}
       <div className="p-8 bg-white rounded-[2rem] border-2 border-orendt-gray-100 shadow-sm">
         <h3 className="font-display text-sm font-bold text-orendt-black uppercase tracking-widest mb-2 flex items-center gap-2">
-          <span className="w-8 h-8 rounded-full bg-orendt-black text-orendt-accent flex items-center justify-center text-[10px]">+</span>
+          <span className="w-8 h-8 rounded-full bg-orendt-black text-orendt-white flex items-center justify-center text-[10px]">+</span>
           Neuen Mitarbeiter anlegen
         </h3>
         <p className="text-[11px] font-display text-orendt-gray-400 mb-6">Der Mitarbeiter erhält automatisch das Default-Passwort und muss es beim ersten Login ändern.</p>
@@ -808,7 +808,7 @@ function UsersTab({ profiles, onRefresh }) {
           </div>
         </div>
         <div className="mt-6 flex justify-end">
-          <button onClick={handleAddUser} disabled={addingUser || !newUser.email || !newUser.fullName} className="px-10 py-4 bg-orendt-black text-orendt-accent font-display text-[11px] font-bold uppercase tracking-[0.2em] rounded-2xl hover:opacity-90 disabled:opacity-30 transition-all shadow-lg active:scale-95">
+          <button onClick={handleAddUser} disabled={addingUser || !newUser.email || !newUser.fullName} className="px-10 py-4 bg-orendt-black text-orendt-white font-display text-[11px] font-bold uppercase tracking-[0.2em] rounded-2xl hover:opacity-90 disabled:opacity-30 transition-all shadow-lg active:scale-95">
             {addingUser ? "Anlegen..." : "Mitarbeiter Anlegen"}
           </button>
         </div>
@@ -888,7 +888,7 @@ function UsersTab({ profiles, onRefresh }) {
                     <button onClick={cancelEditUser} className="px-5 py-2.5 text-orendt-gray-400 hover:text-orendt-black font-display text-[11px] font-bold uppercase tracking-widest transition-all">
                       Abbrechen
                     </button>
-                    <button onClick={handleSaveUser} disabled={savingEdit || !editingUser.fullName.trim() || !editingUser.email.trim()} className="px-6 py-2.5 bg-orendt-black text-orendt-accent font-display text-[11px] font-bold uppercase tracking-[0.2em] rounded-xl hover:opacity-90 disabled:opacity-30 transition-all shadow-md active:scale-95">
+                    <button onClick={handleSaveUser} disabled={savingEdit || !editingUser.fullName.trim() || !editingUser.email.trim()} className="px-6 py-2.5 bg-orendt-black text-orendt-white font-display text-[11px] font-bold uppercase tracking-[0.2em] rounded-xl hover:opacity-90 disabled:opacity-30 transition-all shadow-md active:scale-95">
                       {savingEdit ? "Speichern..." : "Änderungen Speichern"}
                     </button>
                   </div>
@@ -1014,7 +1014,7 @@ function AbsencesTab() {
           <button
             onClick={handleManualSync}
             disabled={syncing}
-            className="px-8 py-3.5 bg-orendt-black text-orendt-accent font-display text-[11px] font-bold uppercase tracking-[0.2em] rounded-2xl hover:opacity-90 disabled:opacity-30 transition-all shadow-lg active:scale-95"
+            className="px-8 py-3.5 bg-orendt-black text-orendt-white font-display text-[11px] font-bold uppercase tracking-[0.2em] rounded-2xl hover:opacity-90 disabled:opacity-30 transition-all shadow-lg active:scale-95"
           >
             {syncing ? "Abgleich läuft..." : "Jetzt Abgleichen"}
           </button>
@@ -1126,7 +1126,7 @@ function SettingsTab() {
             <label className="block text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">PIN-Code</label>
             <input type="text" value={keyBoxPin} onChange={(e) => setKeyBoxPin(e.target.value)} placeholder="z.B. 1234" className="w-full px-5 py-3.5 bg-orendt-gray-50 border border-orendt-gray-100 rounded-2xl text-sm outline-none focus:border-orendt-black transition-all font-mono tracking-[0.3em]" />
           </div>
-          <button onClick={handleSavePin} disabled={savingPin || !keyBoxPin.trim()} className="w-full md:w-auto px-8 py-4 bg-orendt-black text-orendt-accent font-display text-[11px] font-bold uppercase tracking-[0.2em] rounded-2xl hover:opacity-90 disabled:opacity-30 transition-all shadow-lg active:scale-95">
+          <button onClick={handleSavePin} disabled={savingPin || !keyBoxPin.trim()} className="w-full md:w-auto px-8 py-4 bg-orendt-black text-orendt-white font-display text-[11px] font-bold uppercase tracking-[0.2em] rounded-2xl hover:opacity-90 disabled:opacity-30 transition-all shadow-lg active:scale-95">
             {savingPin ? "Speichern..." : "PIN Aktualisieren"}
           </button>
         </div>
@@ -1149,7 +1149,7 @@ function SettingsTab() {
               </button>
             </div>
           </div>
-          <button onClick={handleSavePw} disabled={savingPw || !defaultPw.trim()} className="w-full md:w-auto px-8 py-4 bg-orendt-black text-orendt-accent font-display text-[11px] font-bold uppercase tracking-[0.2em] rounded-2xl hover:opacity-90 disabled:opacity-30 transition-all shadow-lg active:scale-95">
+          <button onClick={handleSavePw} disabled={savingPw || !defaultPw.trim()} className="w-full md:w-auto px-8 py-4 bg-orendt-black text-orendt-white font-display text-[11px] font-bold uppercase tracking-[0.2em] rounded-2xl hover:opacity-90 disabled:opacity-30 transition-all shadow-lg active:scale-95">
             {savingPw ? "Speichern..." : "Passwort Aktualisieren"}
           </button>
         </div>

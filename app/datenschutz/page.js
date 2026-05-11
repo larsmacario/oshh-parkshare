@@ -232,7 +232,7 @@ export default function DatenschutzPage() {
                                     ["bookings", "Buchungen (Flexible Nutzer)"],
                                 ].map(([table, desc]) => (
                                     <div key={table} className="flex gap-2">
-                                        <span className="bg-orendt-black text-orendt-accent px-2 py-0.5 rounded text-[10px] font-bold shrink-0">
+                                        <span className="bg-orendt-black text-orendt-white px-2 py-0.5 rounded text-[10px] font-bold shrink-0">
                                             {table}
                                         </span>
                                         <span className="font-body">{desc}</span>

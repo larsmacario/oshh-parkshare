@@ -13,6 +13,8 @@ import {
   getMyBlocks,
   blockSpot,
   unblockSpot,
+  getSpotReleaseProgress,
+  getSpotRecurringReleaseProgress,
 } from "@/lib/supabase"
 import {
   getMonthWeeks,
@@ -39,8 +41,10 @@ export default function OwnerCalendar({ user }) {
   const [mySpots, setMySpots] = useState([])
   const [selectedSpotIdx, setSelectedSpotIdx] = useState(0)
   const [releasedDates, setReleasedDates] = useState({}) // date -> availability obj
+  const [releaseProgressByDate, setReleaseProgressByDate] = useState({}) // date -> { approvedCount, requiredCount, isFullyReleased }
   const [reservedDates, setReservedDates] = useState(new Set())
   const [blockedDates, setBlockedDates] = useState({}) // date -> block obj
+  const [recurringProgressByWeekday, setRecurringProgressByWeekday] = useState({}) // weekday -> { approvedCount, requiredCount, isFullyReleased }
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(null)
 
@@ -99,11 +103,71 @@ export default function OwnerCalendar({ user }) {
       const recurMap = {}
         ; (recur || []).forEach((r) => { recurMap[r.weekday] = r })
       setRecurringDays(recurMap)
+
+      // Load daily release progress (all owners) for this spot and visible range
+      const { data: progressData } = await getSpotReleaseProgress(currentSpot.id, fromDate, toDate)
+      const progressMap = {}
+      const approvalsByDate = {}
+      ; (progressData?.approvals || []).forEach((row) => {
+        if (!approvalsByDate[row.date]) approvalsByDate[row.date] = new Set()
+        if (row.owner_id) approvalsByDate[row.date].add(row.owner_id)
+      })
+
+      const toDateObj = (value) => new Date(`${value}T00:00:00`)
+      allDates.forEach((d) => {
+        const activeOwners = new Set()
+        ; (progressData?.assignments || []).forEach((assignment) => {
+          const from = assignment.valid_from ? toDateObj(assignment.valid_from) : null
+          const until = assignment.valid_until ? toDateObj(assignment.valid_until) : null
+          const day = toDateObj(d)
+          const isActiveFrom = !from || from <= day
+          const isActiveUntil = !until || until >= day
+          if (isActiveFrom && isActiveUntil && assignment.user_id) activeOwners.add(assignment.user_id)
+        })
+
+        const approvedOwners = approvalsByDate[d] || new Set()
+        const requiredCount = activeOwners.size
+        const approvedCount = [...approvedOwners].filter((id) => activeOwners.has(id)).length
+        progressMap[d] = {
+          approvedCount,
+          requiredCount,
+          isFullyReleased: requiredCount > 0 && approvedCount >= requiredCount,
+        }
+      })
+      setReleaseProgressByDate(progressMap)
+
+      // Load recurring release progress (all owners) for this spot
+      const { data: recurringProgress } = await getSpotRecurringReleaseProgress(currentSpot.id)
+      const recurringRequired = new Set(
+        (recurringProgress?.assignments || [])
+          .map((a) => a.user_id)
+          .filter(Boolean)
+      )
+      const recurringApprovalByDay = {}
+      ; (recurringProgress?.approvals || []).forEach((row) => {
+        if (!recurringApprovalByDay[row.weekday]) recurringApprovalByDay[row.weekday] = new Set()
+        if (row.owner_id) recurringApprovalByDay[row.weekday].add(row.owner_id)
+      })
+
+      const recurringProgressMap = {}
+      for (let weekday = 1; weekday <= 5; weekday++) {
+        const approvedSet = recurringApprovalByDay[weekday] || new Set()
+        const approvedCount = [...approvedSet].filter((id) => recurringRequired.has(id)).length
+        const requiredCount = recurringRequired.size
+        recurringProgressMap[weekday] = {
+          approvedCount,
+          requiredCount,
+          isFullyReleased: requiredCount > 0 && approvedCount >= requiredCount,
+        }
+      }
+      setRecurringProgressByWeekday(recurringProgressMap)
     } else {
       setReleasedDates({})
+      setReleaseProgressByDate({})
       setReservedDates(new Set())
       setBlockedDates({})
       setRecurringDays({})
+      setRecurringProgressByWeekday({})
     }
 
     if (isInitial) setLoading(false)
@@ -282,10 +346,10 @@ export default function OwnerCalendar({ user }) {
             <button
               key={spot.id}
               onClick={() => setSelectedSpotIdx(idx)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-display text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap border-2 ${selectedSpotIdx === idx ? "bg-orendt-black text-orendt-accent border-orendt-black shadow-md" : "bg-white text-orendt-gray-400 border-orendt-gray-100 hover:border-orendt-black hover:text-orendt-black"}`}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-display text-[10px] font-bold uppercase tracking-widest transition-all whitespace-nowrap border-2 ${selectedSpotIdx === idx ? "bg-orendt-black text-orendt-white border-orendt-black shadow-md" : "bg-white text-orendt-gray-400 border-orendt-gray-100 hover:border-orendt-black hover:text-orendt-black"}`}
             >
               {spot.label}
-              <span className={`text-[8px] tracking-wider ${selectedSpotIdx === idx ? "text-orendt-accent/70" : "text-orendt-gray-300"}`}>{spot.zone}</span>
+              <span className={`text-[8px] tracking-wider ${selectedSpotIdx === idx ? "text-orendt-white/70" : "text-orendt-gray-300"}`}>{spot.zone}</span>
             </button>
           ))}
         </div>
@@ -372,7 +436,7 @@ export default function OwnerCalendar({ user }) {
                 className={`
                   relative flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border-2 transition-all duration-200 font-display font-bold text-[11px] uppercase tracking-wider
                   ${isActive
-                    ? "bg-orendt-black border-orendt-black text-orendt-accent shadow-md scale-[1.03]"
+                    ? "bg-orendt-black border-orendt-black text-orendt-white shadow-md scale-[1.03]"
                     : "bg-white border-orendt-gray-200 text-orendt-gray-500 hover:border-orendt-gray-400 hover:text-orendt-black hover:bg-orendt-gray-50"
                   }
                   ${isLoadingThis ? "opacity-60 cursor-wait" : "cursor-pointer active:scale-95"}
@@ -403,6 +467,9 @@ export default function OwnerCalendar({ user }) {
                   </svg>
                 )}
                 {label}
+                <span className={`text-[8px] tracking-wide ${isActive ? "text-orendt-white/70" : "text-orendt-gray-300"}`}>
+                  {(recurringProgressByWeekday[weekday]?.approvedCount || 0)}/{(recurringProgressByWeekday[weekday]?.requiredCount || 0)}
+                </span>
               </button>
             )
           })}
@@ -435,6 +502,10 @@ export default function OwnerCalendar({ user }) {
           <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-orange-400 border border-black/5" />
           <span className="text-[9px] sm:text-[10px] font-display font-bold uppercase tracking-wider text-orendt-gray-400">Gesperrt</span>
         </div>
+        <div className="flex items-center gap-2">
+          <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-amber-400 border border-black/5" />
+          <span className="text-[9px] sm:text-[10px] font-display font-bold uppercase tracking-wider text-orendt-gray-400">Warten auf Co-Owner</span>
+        </div>
       </div>
 
       {/* Calendar grid */}
@@ -465,8 +536,12 @@ export default function OwnerCalendar({ user }) {
                 const weekdayNum = getWeekdayNumber(date) // 1–5
                 const isRecurring = !!recurringDays[weekdayNum]
                 const isPermanent = mySpot?.is_permanently_released === true
-                // A day is "effectively free" if explicitly released OR recurring OR permanent (and not blocked)
-                const effectivelyFree = !blocked && (released || (isRecurring && inMonth && !past) || (isPermanent && inMonth && !past))
+                const progress = releaseProgressByDate[date] || { approvedCount: 0, requiredCount: 0, isFullyReleased: false }
+                const recurringProgress = recurringProgressByWeekday[weekdayNum] || { approvedCount: 0, requiredCount: 0, isFullyReleased: false }
+                const hasOwnerIntent = released || (isRecurring && inMonth && !past) || (isPermanent && inMonth && !past)
+                const isFullyReleased = isPermanent || progress.isFullyReleased || (isRecurring && recurringProgress.isFullyReleased)
+                const waitingForOthers = !blocked && !reserved && hasOwnerIntent && !isFullyReleased && inMonth && !past
+                const effectivelyFree = !blocked && !past && inMonth && isFullyReleased
 
                 return (
                   <button
@@ -476,7 +551,7 @@ export default function OwnerCalendar({ user }) {
                     className={`
                       relative group py-4 sm:py-6 px-1 sm:px-2 text-center transition-all duration-300 border-r border-orendt-gray-50 last:border-0
                       ${!inMonth ? "opacity-15 cursor-default" : past ? "opacity-25 cursor-not-allowed" : "cursor-pointer hover:bg-white active:scale-95"}
-                      ${reserved ? "bg-status-reserved/5" : blocked ? "bg-orange-50" : effectivelyFree ? "bg-orendt-accent/5" : "bg-transparent"}
+                      ${reserved ? "bg-status-reserved/5" : blocked ? "bg-orange-50" : effectivelyFree ? "bg-orendt-accent/5" : waitingForOthers ? "bg-amber-50" : "bg-transparent"}
                     `}
                   >
                     {todayDate && (
@@ -505,6 +580,11 @@ export default function OwnerCalendar({ user }) {
                         ✕
                       </div>
                     )}
+                    {waitingForOthers && (
+                      <div className="absolute top-1 sm:top-1.5 right-1 sm:right-1.5 text-[8px] text-amber-500 font-bold leading-none">
+                        …
+                      </div>
+                    )}
 
                     <span className={`
                       block font-display text-sm sm:text-base font-bold mb-0.5 sm:mb-1 transition-colors duration-200
@@ -515,10 +595,17 @@ export default function OwnerCalendar({ user }) {
 
                     <span className={`
                       block text-[7px] sm:text-[9px] font-display font-bold uppercase tracking-widest leading-tight
-                      ${!inMonth ? "text-transparent" : reserved ? "text-amber-600" : blocked ? "text-orange-500" : released ? "text-green-600" : (isRecurring || isPermanent) && !past ? "text-green-500" : past ? "text-transparent" : "text-orendt-gray-300"}
+                      ${!inMonth ? "text-transparent" : reserved ? "text-amber-600" : blocked ? "text-orange-500" : waitingForOthers ? "text-amber-600" : released ? "text-green-600" : (isRecurring || isPermanent) && !past ? "text-green-500" : past ? "text-transparent" : "text-orendt-gray-300"}
                     `}>
-                      {isLoading ? "..." : !inMonth ? "–" : reserved ? "Gebucht" : blocked ? "Gesperrt" : released ? "Frei" : (isRecurring || isPermanent) && !past ? "Frei" : past ? "" : "Besetzt"}
+                      {isLoading ? "..." : !inMonth ? "–" : reserved ? "Gebucht" : blocked ? "Gesperrt" : waitingForOthers ? "Warten" : effectivelyFree ? "Frei" : past ? "" : "Besetzt"}
                     </span>
+                    {inMonth && !past && !reserved && !blocked && (progress.requiredCount > 0 || recurringProgress.requiredCount > 0) && (
+                      <span className="block text-[7px] text-orendt-gray-400 font-display font-bold tracking-wide mt-0.5">
+                        {isRecurring && recurringProgress.requiredCount > 0
+                          ? `${recurringProgress.approvedCount}/${recurringProgress.requiredCount}`
+                          : `${progress.approvedCount}/${progress.requiredCount}`} Owner
+                      </span>
+                    )}
 
                     {/* Visual indicator bar */}
                     {inMonth && !past && (

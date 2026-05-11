@@ -34,7 +34,7 @@ export default function ProfilePage() {
                     <p className="font-display text-[11px] font-bold tracking-[0.2em] uppercase text-orendt-gray-500 mb-3 block">
                         Einstellungen
                     </p>
-                    <h1 className="font-display text-4xl md:text-5xl font-bold text-orendt-black uppercase tracking-tight">
+                    <h1 className="font-display text-[clamp(2.2rem,5vw,3.125rem)] font-bold text-orendt-black uppercase tracking-tight">
                         Mein Profil
                     </h1>
                     <p className="text-base text-orendt-gray-500 font-body mt-4 max-w-lg leading-relaxed">

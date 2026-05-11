@@ -62,7 +62,7 @@ export default function Header({ user, currentPage = "dashboard" }) {
 
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-1.5 sm:py-2 bg-orendt-gray-50 border border-orendt-gray-200 rounded-xl">
-              <div className="w-6 h-6 sm:w-7 sm:h-7 bg-orendt-black rounded-lg flex items-center justify-center text-[10px] sm:text-[11px] font-display font-bold text-orendt-accent">
+              <div className="w-6 h-6 sm:w-7 sm:h-7 bg-orendt-black rounded-lg flex items-center justify-center text-[10px] sm:text-[11px] font-display font-bold text-orendt-white">
                 {user?.full_name?.charAt(0)?.toUpperCase() || "?"}
               </div>
               <div className="hidden sm:flex flex-col">
@@ -115,7 +115,7 @@ function NavTab({ label, icon, active, onClick }) {
     <button
       onClick={onClick}
       className={`
-        flex items-center gap-2 px-5 py-3 text-[13px] font-display font-bold uppercase tracking-wider transition-all border-b-2
+        flex items-center gap-2 px-5 py-3 text-[13px] font-display font-bold uppercase tracking-wider transition-colors border-b-2
         ${active
           ? "text-orendt-black border-orendt-black"
           : "text-orendt-gray-400 border-transparent hover:text-orendt-black hover:border-orendt-gray-300"

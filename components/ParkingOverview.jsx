@@ -120,7 +120,7 @@ export default function ParkingOverview({ user, onBook }) {
           <button
             onClick={() => setDate(getToday())}
             className={`px-4 py-2 text-[11px] font-display font-bold uppercase tracking-wider rounded-lg transition-all ${isToday(date)
-              ? "bg-orendt-black text-orendt-accent shadow-md"
+              ? "bg-orendt-black text-orendt-white shadow-md"
               : "text-orendt-gray-500 hover:text-orendt-black"
               }`}
           >
@@ -237,7 +237,7 @@ function SpotCard({ spot, canBook, onBook, index }) {
       {/* Book interaction hint */}
       {canBook && (
         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-          <div className="bg-orendt-black text-orendt-accent text-[9px] font-display font-bold uppercase px-2 py-1 rounded shadow-lg">
+          <div className="bg-orendt-black text-orendt-white text-[9px] font-display font-bold uppercase px-2 py-1 rounded shadow-lg">
             Buchen
           </div>
         </div>

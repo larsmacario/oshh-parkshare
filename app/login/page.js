@@ -48,19 +48,60 @@ export default function LoginPage() {
       const hashType = hashParams.get("type")
       const flow = queryParams.get("flow")
       const code = queryParams.get("code")
+      const accessToken = hashParams.get("access_token")
+      const refreshToken = hashParams.get("refresh_token")
+
+      async function ensureRecoverySession() {
+        const { data: currentSession } = await supabase.auth.getSession()
+        if (currentSession?.session) return true
+
+        if (accessToken && refreshToken) {
+          const { error: setSessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          })
+          if (!setSessionError) {
+            const { data: hashSession } = await supabase.auth.getSession()
+            if (hashSession?.session) return true
+          }
+        }
+
+        if (code) {
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+          if (!exchangeError) {
+            const { data: codeSession } = await supabase.auth.getSession()
+            if (codeSession?.session) return true
+          }
+        }
+
+        for (let i = 0; i < 6; i += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 200))
+          const { data: polledSession } = await supabase.auth.getSession()
+          if (polledSession?.session) return true
+        }
+
+        return false
+      }
 
       // Case 1: Supabase redirect already contains explicit recovery marker
       if (queryType === "recovery" || hashType === "recovery" || flow === "recovery") {
-        if (active) activateRecoveryMode()
+        const hasRecoverySession = await ensureRecoverySession()
+        if (active && hasRecoverySession) {
+          activateRecoveryMode()
+        } else if (active) {
+          setError("Reset-Link ist ungültig oder abgelaufen. Bitte fordere einen neuen Link an.")
+        }
         if (active) setIsCheckingRecovery(false)
         return
       }
 
       // Case 2: PKCE flow -> exchange one-time code for a session first
       if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code)
-        if (!error && active) {
+        const hasRecoverySession = await ensureRecoverySession()
+        if (hasRecoverySession && active) {
           activateRecoveryMode()
+        } else if (active) {
+          setError("Reset-Link ist ungültig oder abgelaufen. Bitte fordere einen neuen Link an.")
         }
       }
 
@@ -281,11 +322,11 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={changingPassword || !newPassword || !confirmPassword}
-                className="w-full py-5 bg-orendt-black text-orendt-accent font-display font-bold text-xs uppercase tracking-[0.25em] rounded-2xl hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 shadow-[0_12px_24px_-8px_rgba(0,0,0,0.15)] mt-2"
+                className="w-full py-5 bg-orendt-black text-orendt-white font-display font-bold text-xs uppercase tracking-[0.25em] rounded-2xl hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 shadow-[0_12px_24px_-8px_rgba(0,0,0,0.15)] mt-2"
               >
                 {changingPassword ? (
                   <span className="flex items-center justify-center gap-3">
-                    <span className="w-4 h-4 border-2 border-orendt-accent/20 border-t-orendt-accent rounded-full animate-spin" />
+                    <span className="w-4 h-4 border-2 border-orendt-white/20 border-t-orendt-white rounded-full animate-spin" />
                     Wird gespeichert...
                   </span>
                 ) : "Passwort Festlegen"}
@@ -438,14 +479,14 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading || (isSignUp && !privacyAccepted)}
-                className="w-full py-4 sm:py-5 bg-orendt-black text-orendt-accent font-display font-bold text-xs uppercase tracking-[0.25em] rounded-2xl hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 shadow-[0_12px_24px_-8px_rgba(0,0,0,0.15)] mt-4"
+                className="w-full py-4 sm:py-5 bg-orendt-black text-orendt-white font-display font-bold text-xs uppercase tracking-[0.25em] rounded-2xl hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 shadow-[0_12px_24px_-8px_rgba(0,0,0,0.15)] mt-4"
               >
                 {loading ? (
                   <span className="flex items-center justify-center gap-3">
-                    <span className="w-4 h-4 border-2 border-orendt-accent/20 border-t-orendt-accent rounded-full animate-spin" />
+                    <span className="w-4 h-4 border-2 border-orendt-white/20 border-t-orendt-white rounded-full animate-spin" />
                     Authentication...
                   </span>
-                ) : isForgotPasswordMode ? "Reset-Link senden" : isSignUp ? "Create Account" : "Let me in"}
+                ) : isForgotPasswordMode ? "Reset-Link senden" : isSignUp ? "Konto erstellen" : "Anmelden"}
               </button>
             </form>
 

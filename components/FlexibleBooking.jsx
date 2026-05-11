@@ -40,7 +40,7 @@ function ParkingSpotBadge({ label, variant }) {
         className={[
           "font-display font-bold text-center break-words hyphens-auto",
           typo,
-          isReserved ? "text-orendt-accent" : "text-orendt-black",
+          isReserved ? "text-orendt-white" : "text-orendt-black",
         ].join(" ")}
       >
         {text}
@@ -156,7 +156,7 @@ export default function FlexibleBooking({ user }) {
           />
 
           <h2 className="font-display text-2xl sm:text-3xl font-bold text-orendt-black uppercase tracking-tight mb-2">
-            Platz gesichert! 🎉
+            Platz gesichert
           </h2>
 
           <p className="text-sm text-orendt-gray-500 font-body max-w-sm mx-auto leading-relaxed mb-6">
@@ -167,7 +167,7 @@ export default function FlexibleBooking({ user }) {
             {keyBoxPin ? (
               <div className="p-5 bg-orendt-gray-50 border-2 border-orendt-accent/30 rounded-2xl">
                 <p className="text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-[0.2em] mb-2">
-                  🔑 Schlüsselkasten PIN
+                  Schluesselkasten PIN
                 </p>
                 <p className="font-mono text-3xl font-bold text-orendt-black tracking-[0.4em]">
                   {keyBoxPin}
@@ -244,11 +244,11 @@ export default function FlexibleBooking({ user }) {
             <button
               onClick={handleBook}
               disabled={booking}
-              className="w-full sm:w-auto px-12 py-5 bg-orendt-black text-orendt-accent font-display text-sm font-bold uppercase tracking-[0.2em] rounded-2xl hover:opacity-90 active:scale-95 transition-all disabled:opacity-50 shadow-xl hover:shadow-2xl"
+              className="w-full sm:w-auto px-12 py-5 bg-orendt-black text-orendt-white font-display text-sm font-bold uppercase tracking-[0.2em] rounded-2xl hover:opacity-90 active:scale-95 transition-all disabled:opacity-50 shadow-xl hover:shadow-2xl"
             >
               {booking ? (
                 <div className="flex items-center justify-center gap-3">
-                  <div className="w-4 h-4 border-2 border-orendt-accent/30 border-t-orendt-accent rounded-full animate-spin" />
+                  <div className="w-4 h-4 border-2 border-orendt-white/30 border-t-orendt-white rounded-full animate-spin" />
                   Wird gebucht...
                 </div>
               ) : (

@@ -205,11 +205,11 @@ export default function UserSettings({ user, onUserUpdate }) {
                     <button
                         type="submit"
                         disabled={nameLoading || !nameChanged}
-                        className="mt-5 px-8 py-3.5 bg-orendt-black text-orendt-accent font-display font-bold text-[11px] uppercase tracking-[0.2em] rounded-2xl hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-30 disabled:hover:scale-100 shadow-[0_8px_16px_-6px_rgba(0,0,0,0.15)]"
+                        className="mt-5 px-8 py-3.5 bg-orendt-black text-orendt-white font-display font-bold text-[11px] uppercase tracking-[0.2em] rounded-2xl hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-30 disabled:hover:scale-100 shadow-[0_8px_16px_-6px_rgba(0,0,0,0.15)]"
                     >
                         {nameLoading ? (
                             <span className="flex items-center gap-2">
-                                <span className="w-3.5 h-3.5 border-2 border-orendt-accent/20 border-t-orendt-accent rounded-full animate-spin" />
+                                <span className="w-3.5 h-3.5 border-2 border-orendt-white/20 border-t-orendt-white rounded-full animate-spin" />
                                 Speichern...
                             </span>
                         ) : "Speichern"}
@@ -235,11 +235,11 @@ export default function UserSettings({ user, onUserUpdate }) {
                     <button
                         type="submit"
                         disabled={emailLoading || !emailChanged}
-                        className="mt-5 px-8 py-3.5 bg-orendt-black text-orendt-accent font-display font-bold text-[11px] uppercase tracking-[0.2em] rounded-2xl hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-30 disabled:hover:scale-100 shadow-[0_8px_16px_-6px_rgba(0,0,0,0.15)]"
+                        className="mt-5 px-8 py-3.5 bg-orendt-black text-orendt-white font-display font-bold text-[11px] uppercase tracking-[0.2em] rounded-2xl hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-30 disabled:hover:scale-100 shadow-[0_8px_16px_-6px_rgba(0,0,0,0.15)]"
                     >
                         {emailLoading ? (
                             <span className="flex items-center gap-2">
-                                <span className="w-3.5 h-3.5 border-2 border-orendt-accent/20 border-t-orendt-accent rounded-full animate-spin" />
+                                <span className="w-3.5 h-3.5 border-2 border-orendt-white/20 border-t-orendt-white rounded-full animate-spin" />
                                 Speichern...
                             </span>
                         ) : "Speichern"}
@@ -282,11 +282,11 @@ export default function UserSettings({ user, onUserUpdate }) {
                     <button
                         type="submit"
                         disabled={passwordLoading || !newPassword || !confirmPassword}
-                        className="mt-1 px-8 py-3.5 bg-orendt-black text-orendt-accent font-display font-bold text-[11px] uppercase tracking-[0.2em] rounded-2xl hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-30 disabled:hover:scale-100 shadow-[0_8px_16px_-6px_rgba(0,0,0,0.15)]"
+                        className="mt-1 px-8 py-3.5 bg-orendt-black text-orendt-white font-display font-bold text-[11px] uppercase tracking-[0.2em] rounded-2xl hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-30 disabled:hover:scale-100 shadow-[0_8px_16px_-6px_rgba(0,0,0,0.15)]"
                     >
                         {passwordLoading ? (
                             <span className="flex items-center gap-2">
-                                <span className="w-3.5 h-3.5 border-2 border-orendt-accent/20 border-t-orendt-accent rounded-full animate-spin" />
+                                <span className="w-3.5 h-3.5 border-2 border-orendt-white/20 border-t-orendt-white rounded-full animate-spin" />
                                 Speichern...
                             </span>
                         ) : "Passwort Ändern"}

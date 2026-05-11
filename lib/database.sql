@@ -111,6 +111,28 @@ CREATE TABLE public.availabilities (
   UNIQUE(spot_id, date)  -- ein Platz kann pro Tag nur einmal freigegeben werden
 );
 
+-- ─── 5b. OWNER AVAILABILITIES (pro Owner + Tag) ──────────────
+-- Legacy-Hinweis: `availabilities` bleibt vorerst bestehen.
+-- Neue Logik fuer Multi-Owner-Freigabe nutzt diese Tabellen.
+
+CREATE TABLE IF NOT EXISTS public.spot_owner_availabilities (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  spot_id UUID NOT NULL REFERENCES public.parking_spots(id) ON DELETE CASCADE,
+  owner_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  date DATE NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(spot_id, owner_id, date)
+);
+
+CREATE TABLE IF NOT EXISTS public.recurring_owner_availabilities (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  spot_id UUID NOT NULL REFERENCES public.parking_spots(id) ON DELETE CASCADE,
+  owner_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  weekday INTEGER NOT NULL CHECK (weekday BETWEEN 1 AND 5),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(spot_id, owner_id, weekday)
+);
+
 -- ─── 5. RESERVATIONS (Flexible bucht freigegebenen Platz) ───
 
 CREATE TABLE public.reservations (
@@ -139,6 +161,8 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.parking_spots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.spot_assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.availabilities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.spot_owner_availabilities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.recurring_owner_availabilities ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reservations ENABLE ROW LEVEL SECURITY;
 
 -- Helper: Check if current user is admin
@@ -237,6 +261,56 @@ CREATE POLICY "Availabilities: Owner kann eigene löschen"
 
 CREATE POLICY "Availabilities: Admin verwaltet"
   ON public.availabilities FOR ALL
+  TO authenticated
+  USING (public.is_admin());
+
+-- ─── SPOT_OWNER_AVAILABILITIES ────────────────────────────────
+
+CREATE POLICY "OwnerAvail: Jeder kann lesen"
+  ON public.spot_owner_availabilities FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "OwnerAvail: Owner gibt eigenen Platz frei"
+  ON public.spot_owner_availabilities FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    owner_id = auth.uid()
+    AND public.is_spot_owner(spot_id)
+  );
+
+CREATE POLICY "OwnerAvail: Owner kann eigene löschen"
+  ON public.spot_owner_availabilities FOR DELETE
+  TO authenticated
+  USING (owner_id = auth.uid());
+
+CREATE POLICY "OwnerAvail: Admin verwaltet"
+  ON public.spot_owner_availabilities FOR ALL
+  TO authenticated
+  USING (public.is_admin());
+
+-- ─── RECURRING_OWNER_AVAILABILITIES ───────────────────────────
+
+CREATE POLICY "RecurringOwnerAvail: Jeder kann lesen"
+  ON public.recurring_owner_availabilities FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "RecurringOwnerAvail: Owner verwaltet eigene"
+  ON public.recurring_owner_availabilities FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    owner_id = auth.uid()
+    AND public.is_spot_owner(spot_id)
+  );
+
+CREATE POLICY "RecurringOwnerAvail: Owner kann eigene löschen"
+  ON public.recurring_owner_availabilities FOR DELETE
+  TO authenticated
+  USING (owner_id = auth.uid());
+
+CREATE POLICY "RecurringOwnerAvail: Admin verwaltet"
+  ON public.recurring_owner_availabilities FOR ALL
   TO authenticated
   USING (public.is_admin());
 

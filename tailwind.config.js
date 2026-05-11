@@ -11,8 +11,8 @@ module.exports = {
           black: "#0A0A0A",
           dark: "#1A1A1A",
           white: "#FFFFFF",
-          accent: "#E8FF00",
-          "accent-hover": "#d4eb00",
+          accent: "#DEB887",
+          "accent-hover": "#cda471",
           gray: {
             50: "#FAFAFA",
             100: "#F5F5F5",
@@ -38,8 +38,8 @@ module.exports = {
         },
       },
       fontFamily: {
-        display: ["var(--font-display)", "sans-serif"],
-        body: ["var(--font-body)", "sans-serif"],
+        display: ["var(--font-headline)", "Arial", "sans-serif"],
+        body: ["var(--font-body)", "Arial", "sans-serif"],
       },
       borderRadius: {
         xl: "12px",
