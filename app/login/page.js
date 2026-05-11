@@ -235,7 +235,7 @@ export default function LoginPage() {
 
     setLoading(true)
     try {
-      const redirectTo = `${window.location.origin}/login?flow=recovery`
+      const redirectTo = `${window.location.origin}/login`
       const { error: resetError } = await requestPasswordReset(normalizedEmail, redirectTo)
       if (resetError) throw resetError
       setIsOtpResetMode(true)
@@ -282,6 +282,11 @@ export default function LoginPage() {
       if (pwError) throw pwError
 
       await signOut()
+      setShowPasswordChange(false)
+      setIsRecoveryFlow(false)
+      setPasswordChangeUser(null)
+      setNewPassword("")
+      setConfirmPassword("")
       setIsForgotPasswordMode(false)
       setIsOtpResetMode(false)
       setOtpCode("")
