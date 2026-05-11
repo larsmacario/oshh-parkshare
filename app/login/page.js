@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useAuth } from "@/lib/hooks"
@@ -17,155 +17,22 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [privacyAccepted, setPrivacyAccepted] = useState(false)
 
-  // Password change modal state
-  const [showPasswordChange, setShowPasswordChange] = useState(false)
-  const [newPassword, setNewPassword] = useState("")
-  const [confirmPassword, setConfirmPassword] = useState("")
-  const [changingPassword, setChangingPassword] = useState(false)
-  const [passwordChangeUser, setPasswordChangeUser] = useState(null)
-  const [isRecoveryFlow, setIsRecoveryFlow] = useState(false)
   const [isForgotPasswordMode, setIsForgotPasswordMode] = useState(false)
   const [isOtpResetMode, setIsOtpResetMode] = useState(false)
   const [otpCode, setOtpCode] = useState("")
   const [otpNewPassword, setOtpNewPassword] = useState("")
   const [otpConfirmPassword, setOtpConfirmPassword] = useState("")
-  const [isCheckingRecovery, setIsCheckingRecovery] = useState(true)
-  const [pendingConfirmationUrl, setPendingConfirmationUrl] = useState("")
-  const recoveryContextRef = useRef({
-    code: null,
-    tokenHash: null,
-    accessToken: null,
-    refreshToken: null,
-  })
 
   const router = useRouter()
 
-  function activateRecoveryMode() {
-    setIsSignUp(false)
-    setIsForgotPasswordMode(false)
-    setShowPasswordChange(true)
-    setIsRecoveryFlow(true)
-    setSuccessMessage("Bitte setze jetzt ein neues Passwort.")
-    setError("")
+  async function triggerOtpReset(normalizedEmail) {
+    const redirectTo = `${window.location.origin}/login`
+    const { error: resetError } = await requestPasswordReset(normalizedEmail, redirectTo)
+    if (resetError) throw resetError
+    setIsForgotPasswordMode(true)
+    setIsOtpResetMode(true)
+    setSuccessMessage("Wenn ein Konto mit dieser E-Mail existiert, wurde ein Sicherheitscode versendet. Bitte gib ihn unten ein.")
   }
-
-  async function ensureRecoverySession() {
-    const { code, tokenHash, accessToken, refreshToken } = recoveryContextRef.current
-    const { data: currentSession } = await supabase.auth.getSession()
-    if (currentSession?.session) return true
-
-    if (tokenHash) {
-      const { error: verifyOtpError } = await supabase.auth.verifyOtp({
-        type: "recovery",
-        token_hash: tokenHash,
-      })
-      if (!verifyOtpError) {
-        const { data: otpSession } = await supabase.auth.getSession()
-        if (otpSession?.session) return true
-      }
-    }
-
-    if (accessToken && refreshToken) {
-      const { error: setSessionError } = await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-      })
-      if (!setSessionError) {
-        const { data: hashSession } = await supabase.auth.getSession()
-        if (hashSession?.session) return true
-      }
-    }
-
-    if (code) {
-      const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-      if (!exchangeError) {
-        const { data: codeSession } = await supabase.auth.getSession()
-        if (codeSession?.session) return true
-      }
-    }
-
-    for (let i = 0; i < 6; i += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 200))
-      const { data: polledSession } = await supabase.auth.getSession()
-      if (polledSession?.session) return true
-    }
-
-    return false
-  }
-
-  useEffect(() => {
-    let active = true
-
-    async function initRecoveryFlow() {
-      const queryParams = new URLSearchParams(window.location.search)
-      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""))
-      const queryType = queryParams.get("type")
-      const hashType = hashParams.get("type")
-      const flow = queryParams.get("flow")
-      const confirmationUrl = queryParams.get("confirmation_url")
-      const code = queryParams.get("code")
-      const tokenHash = queryParams.get("token_hash") || hashParams.get("token_hash")
-      const accessToken = hashParams.get("access_token")
-      const refreshToken = hashParams.get("refresh_token")
-      const queryError = queryParams.get("error") || hashParams.get("error")
-      const queryErrorCode = queryParams.get("error_code") || hashParams.get("error_code")
-      const queryErrorDescription = queryParams.get("error_description") || hashParams.get("error_description")
-      const hasExplicitAuthError = Boolean(queryError || queryErrorCode)
-
-      function getRecoveryErrorMessage() {
-        if (queryErrorDescription) {
-          return `Reset-Link ungültig/abgelaufen (${queryErrorDescription}). Bitte fordere einen neuen Link an.`
-        }
-        if (queryErrorCode || queryError) {
-          return `Reset-Link ungültig/abgelaufen (${queryErrorCode || queryError}). Bitte fordere einen neuen Link an.`
-        }
-        return "Reset-Link ist ungültig oder abgelaufen. Bitte fordere einen neuen Link an."
-      }
-
-      recoveryContextRef.current = { code, tokenHash, accessToken, refreshToken }
-      const hasRecoveryPayload = Boolean(code || tokenHash || (accessToken && refreshToken))
-
-      if (confirmationUrl) {
-        if (active) {
-          setPendingConfirmationUrl(confirmationUrl)
-          setSuccessMessage("Bitte bestätige den Reset mit dem Button unten.")
-          setIsCheckingRecovery(false)
-        }
-        return
-      }
-
-      // Case 1: Supabase redirect already contains explicit recovery marker
-      if (queryType === "recovery" || hashType === "recovery" || flow === "recovery" || hasRecoveryPayload) {
-        if (active && !hasExplicitAuthError) {
-          activateRecoveryMode()
-        } else if (active && hasExplicitAuthError) {
-          setError(getRecoveryErrorMessage())
-        }
-        if (active) setIsCheckingRecovery(false)
-        return
-      }
-
-      if (active) setIsCheckingRecovery(false)
-    }
-
-    initRecoveryFlow()
-
-    return () => {
-      active = false
-    }
-  }, [])
-
-  useEffect(() => {
-    const { data: subscription } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
-        activateRecoveryMode()
-      }
-    })
-
-    return () => {
-      subscription.subscription.unsubscribe()
-    }
-  }, [])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -207,8 +74,7 @@ export default function LoginPage() {
 
         // Check if user must change password
         if (profile?.must_change_password) {
-          setPasswordChangeUser(profile)
-          setShowPasswordChange(true)
+          await triggerOtpReset((email || "").trim().toLowerCase())
           setLoading(false)
           return
         }
@@ -235,11 +101,7 @@ export default function LoginPage() {
 
     setLoading(true)
     try {
-      const redirectTo = `${window.location.origin}/login`
-      const { error: resetError } = await requestPasswordReset(normalizedEmail, redirectTo)
-      if (resetError) throw resetError
-      setIsOtpResetMode(true)
-      setSuccessMessage("Wenn ein Konto mit dieser E-Mail existiert, wurde ein Sicherheitscode versendet. Bitte gib ihn unten ein.")
+      await triggerOtpReset(normalizedEmail)
     } catch (err) {
       setError(err.message || "Passwort-Reset konnte nicht gestartet werden.")
     } finally {
@@ -287,19 +149,14 @@ export default function LoginPage() {
         if (markError) throw markError
       }
 
-      await signOut()
-      setShowPasswordChange(false)
-      setIsRecoveryFlow(false)
-      setPasswordChangeUser(null)
-      setNewPassword("")
-      setConfirmPassword("")
       setIsForgotPasswordMode(false)
       setIsOtpResetMode(false)
       setOtpCode("")
       setOtpNewPassword("")
       setOtpConfirmPassword("")
       setPassword("")
-      setSuccessMessage("Passwort erfolgreich zurückgesetzt. Bitte melde dich mit dem neuen Passwort an.")
+      setSuccessMessage("Passwort erfolgreich zurückgesetzt.")
+      router.push("/dashboard")
     } catch (err) {
       setError(err.message || "Code ungültig oder abgelaufen. Bitte fordere einen neuen Code an.")
     } finally {
@@ -329,45 +186,6 @@ export default function LoginPage() {
     setSuccessMessage("")
   }
 
-  async function handlePasswordChange(e) {
-    e.preventDefault()
-    setError("")
-    setSuccessMessage("")
-
-    if (newPassword.length < 6) {
-      setError("Das Passwort muss mindestens 6 Zeichen lang sein.")
-      return
-    }
-    if (newPassword !== confirmPassword) {
-      setError("Die Passwörter stimmen nicht überein.")
-      return
-    }
-
-    setChangingPassword(true)
-    try {
-      if (isRecoveryFlow) {
-        const hasRecoverySession = await ensureRecoverySession()
-        if (!hasRecoverySession) {
-          throw new Error("Reset-Link ungültig/abgelaufen. Bitte fordere einen neuen Link an.")
-        }
-      }
-
-      const { error: pwError } = await updatePassword(newPassword)
-      if (pwError) throw pwError
-
-      if (passwordChangeUser?.id) {
-        const { error: markError } = await markPasswordChanged(passwordChangeUser.id)
-        if (markError) throw markError
-      }
-
-      router.push("/dashboard")
-    } catch (err) {
-      setError(err.message || "Fehler beim Ändern des Passworts")
-    } finally {
-      setChangingPassword(false)
-    }
-  }
-
   return (
     <div className="min-h-screen flex flex-col bg-white overflow-hidden relative">
       {/* Background decoration */}
@@ -383,79 +201,6 @@ export default function LoginPage() {
         </div>
       </div>
 
-      {/* Password Change Modal */}
-      {showPasswordChange && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
-          <div className="w-full max-w-md bg-white p-8 sm:p-10 rounded-[2rem] border border-orendt-gray-100 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.2)] animate-scale-in">
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 mx-auto mb-4 bg-orendt-accent/20 rounded-full flex items-center justify-center">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-orendt-black">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                </svg>
-              </div>
-              <h2 className="font-display text-2xl font-bold text-orendt-black tracking-tight">
-                {isRecoveryFlow ? "Neues Passwort setzen" : "Passwort ändern"}
-              </h2>
-              <p className="font-display text-[11px] text-orendt-gray-400 uppercase tracking-[0.2em] mt-2">
-                {isRecoveryFlow ? "Passwort-Reset bestätigen" : "Bitte lege ein persönliches Passwort fest"}
-              </p>
-            </div>
-
-            <form onSubmit={handlePasswordChange} className="space-y-5">
-              <div>
-                <label className="block text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">
-                  Neues Passwort
-                </label>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Mindestens 6 Zeichen"
-                  required
-                  minLength={6}
-                  className="w-full px-6 py-4 bg-orendt-gray-50 border border-orendt-gray-100 rounded-2xl text-orendt-black font-body text-base placeholder:text-orendt-gray-300 focus:border-orendt-black focus:ring-4 focus:ring-orendt-black/5 transition-all outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">
-                  Passwort bestätigen
-                </label>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Passwort wiederholen"
-                  required
-                  minLength={6}
-                  className="w-full px-6 py-4 bg-orendt-gray-50 border border-orendt-gray-100 rounded-2xl text-orendt-black font-body text-base placeholder:text-orendt-gray-300 focus:border-orendt-black focus:ring-4 focus:ring-orendt-black/5 transition-all outline-none"
-                />
-              </div>
-
-              {error && (
-                <div className="px-5 py-4 bg-red-500/5 border border-red-500/10 rounded-2xl text-red-500 text-sm font-body animate-shake">
-                  {error}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={changingPassword || !newPassword || !confirmPassword}
-                className="w-full py-5 bg-orendt-black text-orendt-white font-display font-bold text-xs uppercase tracking-[0.25em] rounded-2xl hover:opacity-90 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 shadow-[0_12px_24px_-8px_rgba(0,0,0,0.15)] mt-2"
-              >
-                {changingPassword ? (
-                  <span className="flex items-center justify-center gap-3">
-                    <span className="w-4 h-4 border-2 border-orendt-white/20 border-t-orendt-white rounded-full animate-spin" />
-                    Wird gespeichert...
-                  </span>
-                ) : "Passwort Festlegen"}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
       {/* Main content */}
       <div className="flex-1 flex items-center justify-center px-4 sm:px-6 py-12 sm:py-20 relative z-10">
         <div className="w-full max-w-md">
@@ -470,23 +215,6 @@ export default function LoginPage() {
 
           <div className="bg-white p-6 sm:p-8 md:p-12 rounded-[2rem] sm:rounded-[2.5rem] border border-orendt-gray-100 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.08)] animate-scale-in">
             <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
-              {isCheckingRecovery && (
-                <div className="px-5 py-4 bg-orendt-gray-50 border border-orendt-gray-100 rounded-2xl text-orendt-gray-500 text-sm font-body">
-                  Prüfe Passwort-Reset-Link...
-                </div>
-              )}
-
-              {pendingConfirmationUrl && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    window.location.href = decodeURIComponent(pendingConfirmationUrl)
-                  }}
-                  className="w-full py-4 bg-orendt-black text-orendt-white font-display font-bold text-xs uppercase tracking-[0.25em] rounded-2xl hover:opacity-90 transition-all"
-                >
-                  Reset-Link bestätigen
-                </button>
-              )}
               {isSignUp && (
                 <div className="animate-fade-in">
                   <label className="block text-[9px] sm:text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-[0.2em] mb-2 sm:mb-3 ml-1">
@@ -622,13 +350,13 @@ export default function LoginPage() {
                 </div>
               )}
 
-              {error && !showPasswordChange && (
+              {error && (
                 <div className="px-5 py-4 bg-red-500/5 border border-red-500/10 rounded-2xl text-red-500 text-sm font-body animate-shake">
                   {error}
                 </div>
               )}
 
-              {successMessage && !showPasswordChange && (
+              {successMessage && (
                 <div className="px-5 py-4 bg-green-500/5 border border-green-500/10 rounded-2xl text-green-700 text-sm font-body">
                   {successMessage}
                 </div>
@@ -679,7 +407,7 @@ export default function LoginPage() {
             <div className="mt-8 sm:mt-10 text-center border-t border-orendt-gray-50 pt-6 sm:pt-8">
               <button
                 onClick={() => { setIsSignUp(!isSignUp); setError("") }}
-                disabled={isRecoveryFlow || isForgotPasswordMode}
+                disabled={isForgotPasswordMode}
                 className="text-orendt-gray-400 hover:text-orendt-black text-[10px] sm:text-[11px] font-display font-bold uppercase tracking-[0.3em] transition-colors"
               >
                 {isSignUp ? "Already registered?" : "New here? Register"}
