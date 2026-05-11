@@ -281,6 +281,12 @@ export default function LoginPage() {
       const { error: pwError } = await updatePassword(otpNewPassword)
       if (pwError) throw pwError
 
+      const updatedProfile = await getCurrentUser()
+      if (updatedProfile?.id && updatedProfile?.must_change_password) {
+        const { error: markError } = await markPasswordChanged(updatedProfile.id)
+        if (markError) throw markError
+      }
+
       await signOut()
       setShowPasswordChange(false)
       setIsRecoveryFlow(false)
