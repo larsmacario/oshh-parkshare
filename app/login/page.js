@@ -50,6 +50,9 @@ export default function LoginPage() {
       const code = queryParams.get("code")
       const accessToken = hashParams.get("access_token")
       const refreshToken = hashParams.get("refresh_token")
+      const queryError = queryParams.get("error") || hashParams.get("error")
+      const queryErrorCode = queryParams.get("error_code") || hashParams.get("error_code")
+      const hasExplicitAuthError = Boolean(queryError || queryErrorCode)
 
       async function ensureRecoverySession() {
         const { data: currentSession } = await supabase.auth.getSession()
@@ -88,7 +91,7 @@ export default function LoginPage() {
         const hasRecoverySession = await ensureRecoverySession()
         if (active && hasRecoverySession) {
           activateRecoveryMode()
-        } else if (active) {
+        } else if (active && hasExplicitAuthError) {
           setError("Reset-Link ist ungültig oder abgelaufen. Bitte fordere einen neuen Link an.")
         }
         if (active) setIsCheckingRecovery(false)
@@ -100,7 +103,7 @@ export default function LoginPage() {
         const hasRecoverySession = await ensureRecoverySession()
         if (hasRecoverySession && active) {
           activateRecoveryMode()
-        } else if (active) {
+        } else if (active && hasExplicitAuthError) {
           setError("Reset-Link ist ungültig oder abgelaufen. Bitte fordere einen neuen Link an.")
         }
       }
