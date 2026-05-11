@@ -48,6 +48,7 @@ export default function LoginPage() {
       const hashType = hashParams.get("type")
       const flow = queryParams.get("flow")
       const code = queryParams.get("code")
+      const tokenHash = queryParams.get("token_hash") || hashParams.get("token_hash")
       const accessToken = hashParams.get("access_token")
       const refreshToken = hashParams.get("refresh_token")
       const queryError = queryParams.get("error") || hashParams.get("error")
@@ -57,6 +58,17 @@ export default function LoginPage() {
       async function ensureRecoverySession() {
         const { data: currentSession } = await supabase.auth.getSession()
         if (currentSession?.session) return true
+
+        if (tokenHash) {
+          const { error: verifyOtpError } = await supabase.auth.verifyOtp({
+            type: "recovery",
+            token_hash: tokenHash,
+          })
+          if (!verifyOtpError) {
+            const { data: otpSession } = await supabase.auth.getSession()
+            if (otpSession?.session) return true
+          }
+        }
 
         if (accessToken && refreshToken) {
           const { error: setSessionError } = await supabase.auth.setSession({
