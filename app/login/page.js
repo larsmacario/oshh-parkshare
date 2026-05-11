@@ -26,6 +26,7 @@ export default function LoginPage() {
   const [isRecoveryFlow, setIsRecoveryFlow] = useState(false)
   const [isForgotPasswordMode, setIsForgotPasswordMode] = useState(false)
   const [isCheckingRecovery, setIsCheckingRecovery] = useState(true)
+  const [pendingConfirmationUrl, setPendingConfirmationUrl] = useState("")
   const recoveryContextRef = useRef({
     code: null,
     tokenHash: null,
@@ -97,6 +98,7 @@ export default function LoginPage() {
       const queryType = queryParams.get("type")
       const hashType = hashParams.get("type")
       const flow = queryParams.get("flow")
+      const confirmationUrl = queryParams.get("confirmation_url")
       const code = queryParams.get("code")
       const tokenHash = queryParams.get("token_hash") || hashParams.get("token_hash")
       const accessToken = hashParams.get("access_token")
@@ -118,6 +120,15 @@ export default function LoginPage() {
 
       recoveryContextRef.current = { code, tokenHash, accessToken, refreshToken }
       const hasRecoveryPayload = Boolean(code || tokenHash || (accessToken && refreshToken))
+
+      if (confirmationUrl) {
+        if (active) {
+          setPendingConfirmationUrl(confirmationUrl)
+          setSuccessMessage("Bitte bestätige den Reset mit dem Button unten.")
+          setIsCheckingRecovery(false)
+        }
+        return
+      }
 
       // Case 1: Supabase redirect already contains explicit recovery marker
       if (queryType === "recovery" || hashType === "recovery" || flow === "recovery" || hasRecoveryPayload) {
@@ -386,6 +397,18 @@ export default function LoginPage() {
                 <div className="px-5 py-4 bg-orendt-gray-50 border border-orendt-gray-100 rounded-2xl text-orendt-gray-500 text-sm font-body">
                   Prüfe Passwort-Reset-Link...
                 </div>
+              )}
+
+              {pendingConfirmationUrl && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.location.href = decodeURIComponent(pendingConfirmationUrl)
+                  }}
+                  className="w-full py-4 bg-orendt-black text-orendt-white font-display font-bold text-xs uppercase tracking-[0.25em] rounded-2xl hover:opacity-90 transition-all"
+                >
+                  Reset-Link bestätigen
+                </button>
               )}
               {isSignUp && (
                 <div className="animate-fade-in">
