@@ -25,6 +25,10 @@ export default function LoginPage() {
   const [passwordChangeUser, setPasswordChangeUser] = useState(null)
   const [isRecoveryFlow, setIsRecoveryFlow] = useState(false)
   const [isForgotPasswordMode, setIsForgotPasswordMode] = useState(false)
+  const [isOtpResetMode, setIsOtpResetMode] = useState(false)
+  const [otpCode, setOtpCode] = useState("")
+  const [otpNewPassword, setOtpNewPassword] = useState("")
+  const [otpConfirmPassword, setOtpConfirmPassword] = useState("")
   const [isCheckingRecovery, setIsCheckingRecovery] = useState(true)
   const [pendingConfirmationUrl, setPendingConfirmationUrl] = useState("")
   const recoveryContextRef = useRef({
@@ -166,7 +170,11 @@ export default function LoginPage() {
   async function handleSubmit(e) {
     e.preventDefault()
     if (isForgotPasswordMode) {
-      await handleForgotPassword()
+      if (isOtpResetMode) {
+        await handleOtpPasswordReset()
+      } else {
+        await handleForgotPassword()
+      }
       return
     }
 
@@ -230,9 +238,59 @@ export default function LoginPage() {
       const redirectTo = `${window.location.origin}/login?flow=recovery`
       const { error: resetError } = await requestPasswordReset(normalizedEmail, redirectTo)
       if (resetError) throw resetError
-      setSuccessMessage("Wenn ein Konto mit dieser E-Mail existiert, wurde ein Passwort-Reset-Link versendet.")
+      setIsOtpResetMode(true)
+      setSuccessMessage("Wenn ein Konto mit dieser E-Mail existiert, wurde ein Sicherheitscode versendet. Bitte gib ihn unten ein.")
     } catch (err) {
       setError(err.message || "Passwort-Reset konnte nicht gestartet werden.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleOtpPasswordReset() {
+    setError("")
+    setSuccessMessage("")
+
+    const normalizedEmail = email.trim().toLowerCase()
+    if (!normalizedEmail) {
+      setError("Bitte gib zuerst deine E-Mail-Adresse ein.")
+      return
+    }
+    if (!otpCode.trim()) {
+      setError("Bitte gib den Sicherheitscode aus der E-Mail ein.")
+      return
+    }
+    if (otpNewPassword.length < 6) {
+      setError("Das Passwort muss mindestens 6 Zeichen lang sein.")
+      return
+    }
+    if (otpNewPassword !== otpConfirmPassword) {
+      setError("Die Passwörter stimmen nicht überein.")
+      return
+    }
+
+    setLoading(true)
+    try {
+      const { error: verifyError } = await supabase.auth.verifyOtp({
+        email: normalizedEmail,
+        token: otpCode.trim(),
+        type: "recovery",
+      })
+      if (verifyError) throw verifyError
+
+      const { error: pwError } = await updatePassword(otpNewPassword)
+      if (pwError) throw pwError
+
+      await signOut()
+      setIsForgotPasswordMode(false)
+      setIsOtpResetMode(false)
+      setOtpCode("")
+      setOtpNewPassword("")
+      setOtpConfirmPassword("")
+      setPassword("")
+      setSuccessMessage("Passwort erfolgreich zurückgesetzt. Bitte melde dich mit dem neuen Passwort an.")
+    } catch (err) {
+      setError(err.message || "Code ungültig oder abgelaufen. Bitte fordere einen neuen Code an.")
     } finally {
       setLoading(false)
     }
@@ -241,6 +299,10 @@ export default function LoginPage() {
   function openForgotPasswordMode() {
     setIsSignUp(false)
     setIsForgotPasswordMode(true)
+    setIsOtpResetMode(false)
+    setOtpCode("")
+    setOtpNewPassword("")
+    setOtpConfirmPassword("")
     setPassword("")
     setError("")
     setSuccessMessage("")
@@ -248,6 +310,10 @@ export default function LoginPage() {
 
   function closeForgotPasswordMode() {
     setIsForgotPasswordMode(false)
+    setIsOtpResetMode(false)
+    setOtpCode("")
+    setOtpNewPassword("")
+    setOtpConfirmPassword("")
     setError("")
     setSuccessMessage("")
   }
@@ -457,6 +523,54 @@ export default function LoginPage() {
                 </div>
               )}
 
+              {isForgotPasswordMode && isOtpResetMode && (
+                <>
+                  <div className="animate-fade-in">
+                    <label className="block text-[9px] sm:text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-[0.2em] mb-2 sm:mb-3 ml-1">
+                      Sicherheitscode
+                    </label>
+                    <input
+                      type="text"
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value)}
+                      placeholder="Code aus der E-Mail"
+                      required
+                      className="w-full px-5 py-3.5 sm:px-6 sm:py-4 bg-orendt-gray-50 border border-orendt-gray-100 rounded-2xl text-orendt-black font-body text-base placeholder:text-orendt-gray-300 focus:border-orendt-black focus:ring-4 focus:ring-orendt-black/5 transition-all outline-none"
+                    />
+                  </div>
+
+                  <div className="animate-fade-in">
+                    <label className="block text-[9px] sm:text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-[0.2em] mb-2 sm:mb-3 ml-1">
+                      Neues Passwort
+                    </label>
+                    <input
+                      type="password"
+                      value={otpNewPassword}
+                      onChange={(e) => setOtpNewPassword(e.target.value)}
+                      placeholder="Mindestens 6 Zeichen"
+                      required
+                      minLength={6}
+                      className="w-full px-5 py-3.5 sm:px-6 sm:py-4 bg-orendt-gray-50 border border-orendt-gray-100 rounded-2xl text-orendt-black font-body text-base placeholder:text-orendt-gray-300 focus:border-orendt-black focus:ring-4 focus:ring-orendt-black/5 transition-all outline-none"
+                    />
+                  </div>
+
+                  <div className="animate-fade-in">
+                    <label className="block text-[9px] sm:text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-[0.2em] mb-2 sm:mb-3 ml-1">
+                      Passwort bestätigen
+                    </label>
+                    <input
+                      type="password"
+                      value={otpConfirmPassword}
+                      onChange={(e) => setOtpConfirmPassword(e.target.value)}
+                      placeholder="Passwort wiederholen"
+                      required
+                      minLength={6}
+                      className="w-full px-5 py-3.5 sm:px-6 sm:py-4 bg-orendt-gray-50 border border-orendt-gray-100 rounded-2xl text-orendt-black font-body text-base placeholder:text-orendt-gray-300 focus:border-orendt-black focus:ring-4 focus:ring-orendt-black/5 transition-all outline-none"
+                    />
+                  </div>
+                </>
+              )}
+
               {isSignUp && (
                 <div className="animate-fade-in">
                   <label className="flex items-start gap-3 cursor-pointer group" onClick={(e) => { if (e.target.closest('a')) return; }}>
@@ -541,7 +655,13 @@ export default function LoginPage() {
                     <span className="w-4 h-4 border-2 border-orendt-white/20 border-t-orendt-white rounded-full animate-spin" />
                     Authentication...
                   </span>
-                ) : isForgotPasswordMode ? "Reset-Link senden" : isSignUp ? "Konto erstellen" : "Anmelden"}
+                ) : isForgotPasswordMode
+                  ? isOtpResetMode
+                    ? "Passwort zurücksetzen"
+                    : "Code senden"
+                  : isSignUp
+                    ? "Konto erstellen"
+                    : "Anmelden"}
               </button>
             </form>
 
