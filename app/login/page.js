@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useAuth } from "@/lib/hooks"
@@ -26,6 +26,12 @@ export default function LoginPage() {
   const [isRecoveryFlow, setIsRecoveryFlow] = useState(false)
   const [isForgotPasswordMode, setIsForgotPasswordMode] = useState(false)
   const [isCheckingRecovery, setIsCheckingRecovery] = useState(true)
+  const recoveryContextRef = useRef({
+    code: null,
+    tokenHash: null,
+    accessToken: null,
+    refreshToken: null,
+  })
 
   const router = useRouter()
 
@@ -36,6 +42,50 @@ export default function LoginPage() {
     setIsRecoveryFlow(true)
     setSuccessMessage("Bitte setze jetzt ein neues Passwort.")
     setError("")
+  }
+
+  async function ensureRecoverySession() {
+    const { code, tokenHash, accessToken, refreshToken } = recoveryContextRef.current
+    const { data: currentSession } = await supabase.auth.getSession()
+    if (currentSession?.session) return true
+
+    if (tokenHash) {
+      const { error: verifyOtpError } = await supabase.auth.verifyOtp({
+        type: "recovery",
+        token_hash: tokenHash,
+      })
+      if (!verifyOtpError) {
+        const { data: otpSession } = await supabase.auth.getSession()
+        if (otpSession?.session) return true
+      }
+    }
+
+    if (accessToken && refreshToken) {
+      const { error: setSessionError } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      })
+      if (!setSessionError) {
+        const { data: hashSession } = await supabase.auth.getSession()
+        if (hashSession?.session) return true
+      }
+    }
+
+    if (code) {
+      const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+      if (!exchangeError) {
+        const { data: codeSession } = await supabase.auth.getSession()
+        if (codeSession?.session) return true
+      }
+    }
+
+    for (let i = 0; i < 6; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      const { data: polledSession } = await supabase.auth.getSession()
+      if (polledSession?.session) return true
+    }
+
+    return false
   }
 
   useEffect(() => {
@@ -66,69 +116,18 @@ export default function LoginPage() {
         return "Reset-Link ist ungültig oder abgelaufen. Bitte fordere einen neuen Link an."
       }
 
-      async function ensureRecoverySession() {
-        const { data: currentSession } = await supabase.auth.getSession()
-        if (currentSession?.session) return true
-
-        if (tokenHash) {
-          const { error: verifyOtpError } = await supabase.auth.verifyOtp({
-            type: "recovery",
-            token_hash: tokenHash,
-          })
-          if (!verifyOtpError) {
-            const { data: otpSession } = await supabase.auth.getSession()
-            if (otpSession?.session) return true
-          }
-        }
-
-        if (accessToken && refreshToken) {
-          const { error: setSessionError } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken,
-          })
-          if (!setSessionError) {
-            const { data: hashSession } = await supabase.auth.getSession()
-            if (hashSession?.session) return true
-          }
-        }
-
-        if (code) {
-          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-          if (!exchangeError) {
-            const { data: codeSession } = await supabase.auth.getSession()
-            if (codeSession?.session) return true
-          }
-        }
-
-        for (let i = 0; i < 6; i += 1) {
-          await new Promise((resolve) => setTimeout(resolve, 200))
-          const { data: polledSession } = await supabase.auth.getSession()
-          if (polledSession?.session) return true
-        }
-
-        return false
-      }
+      recoveryContextRef.current = { code, tokenHash, accessToken, refreshToken }
+      const hasRecoveryPayload = Boolean(code || tokenHash || (accessToken && refreshToken))
 
       // Case 1: Supabase redirect already contains explicit recovery marker
-      if (queryType === "recovery" || hashType === "recovery" || flow === "recovery") {
-        const hasRecoverySession = await ensureRecoverySession()
-        if (active && hasRecoverySession) {
+      if (queryType === "recovery" || hashType === "recovery" || flow === "recovery" || hasRecoveryPayload) {
+        if (active && !hasExplicitAuthError) {
           activateRecoveryMode()
         } else if (active && hasExplicitAuthError) {
           setError(getRecoveryErrorMessage())
         }
         if (active) setIsCheckingRecovery(false)
         return
-      }
-
-      // Case 2: PKCE flow -> exchange one-time code for a session first
-      if (code) {
-        const hasRecoverySession = await ensureRecoverySession()
-        if (hasRecoverySession && active) {
-          activateRecoveryMode()
-        } else if (active && hasExplicitAuthError) {
-          setError(getRecoveryErrorMessage())
-        }
       }
 
       if (active) setIsCheckingRecovery(false)
@@ -258,6 +257,13 @@ export default function LoginPage() {
 
     setChangingPassword(true)
     try {
+      if (isRecoveryFlow) {
+        const hasRecoverySession = await ensureRecoverySession()
+        if (!hasRecoverySession) {
+          throw new Error("Reset-Link ungültig/abgelaufen. Bitte fordere einen neuen Link an.")
+        }
+      }
+
       const { error: pwError } = await updatePassword(newPassword)
       if (pwError) throw pwError
 
