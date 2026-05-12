@@ -105,59 +105,69 @@ export default function OwnerCalendar({ user }) {
       setRecurringDays(recurMap)
 
       // Load daily release progress (all owners) for this spot and visible range
-      const { data: progressData } = await getSpotReleaseProgress(currentSpot.id, fromDate, toDate)
+      const { data: progressData, error: progressError } = await getSpotReleaseProgress(currentSpot.id, fromDate, toDate)
+      if (progressError) {
+        console.error("getSpotReleaseProgress:", progressError.message || progressError)
+      }
       const progressMap = {}
-      const approvalsByDate = {}
-      ; (progressData?.approvals || []).forEach((row) => {
-        if (!approvalsByDate[row.date]) approvalsByDate[row.date] = new Set()
-        if (row.owner_id) approvalsByDate[row.date].add(row.owner_id)
-      })
-
-      const toDateObj = (value) => new Date(`${value}T00:00:00`)
-      allDates.forEach((d) => {
-        const activeOwners = new Set()
-        ; (progressData?.assignments || []).forEach((assignment) => {
-          const from = assignment.valid_from ? toDateObj(assignment.valid_from) : null
-          const until = assignment.valid_until ? toDateObj(assignment.valid_until) : null
-          const day = toDateObj(d)
-          const isActiveFrom = !from || from <= day
-          const isActiveUntil = !until || until >= day
-          if (isActiveFrom && isActiveUntil && assignment.user_id) activeOwners.add(assignment.user_id)
+      if (progressData) {
+        const approvalsByDate = {}
+        ; (progressData.approvals || []).forEach((row) => {
+          if (!approvalsByDate[row.date]) approvalsByDate[row.date] = new Set()
+          if (row.owner_id) approvalsByDate[row.date].add(row.owner_id)
         })
 
-        const approvedOwners = approvalsByDate[d] || new Set()
-        const requiredCount = activeOwners.size
-        const approvedCount = [...approvedOwners].filter((id) => activeOwners.has(id)).length
-        progressMap[d] = {
-          approvedCount,
-          requiredCount,
-          isFullyReleased: requiredCount > 0 && approvedCount >= requiredCount,
-        }
-      })
+        const toDateObj = (value) => new Date(`${value}T00:00:00`)
+        allDates.forEach((d) => {
+          const activeOwners = new Set()
+          ; (progressData.assignments || []).forEach((assignment) => {
+            const from = assignment.valid_from ? toDateObj(assignment.valid_from) : null
+            const until = assignment.valid_until ? toDateObj(assignment.valid_until) : null
+            const day = toDateObj(d)
+            const isActiveFrom = !from || from <= day
+            const isActiveUntil = !until || until >= day
+            if (isActiveFrom && isActiveUntil && assignment.user_id) activeOwners.add(assignment.user_id)
+          })
+
+          const approvedOwners = approvalsByDate[d] || new Set()
+          const requiredCount = activeOwners.size
+          const approvedCount = [...approvedOwners].filter((id) => activeOwners.has(id)).length
+          progressMap[d] = {
+            approvedCount,
+            requiredCount,
+            isFullyReleased: requiredCount > 0 && approvedCount >= requiredCount,
+          }
+        })
+      }
       setReleaseProgressByDate(progressMap)
 
       // Load recurring release progress (all owners) for this spot
-      const { data: recurringProgress } = await getSpotRecurringReleaseProgress(currentSpot.id)
-      const recurringRequired = new Set(
-        (recurringProgress?.assignments || [])
-          .map((a) => a.user_id)
-          .filter(Boolean)
-      )
-      const recurringApprovalByDay = {}
-      ; (recurringProgress?.approvals || []).forEach((row) => {
-        if (!recurringApprovalByDay[row.weekday]) recurringApprovalByDay[row.weekday] = new Set()
-        if (row.owner_id) recurringApprovalByDay[row.weekday].add(row.owner_id)
-      })
-
+      const { data: recurringProgress, error: recurringProgressError } = await getSpotRecurringReleaseProgress(currentSpot.id)
+      if (recurringProgressError) {
+        console.error("getSpotRecurringReleaseProgress:", recurringProgressError.message || recurringProgressError)
+      }
       const recurringProgressMap = {}
-      for (let weekday = 1; weekday <= 5; weekday++) {
-        const approvedSet = recurringApprovalByDay[weekday] || new Set()
-        const approvedCount = [...approvedSet].filter((id) => recurringRequired.has(id)).length
-        const requiredCount = recurringRequired.size
-        recurringProgressMap[weekday] = {
-          approvedCount,
-          requiredCount,
-          isFullyReleased: requiredCount > 0 && approvedCount >= requiredCount,
+      if (recurringProgress) {
+        const recurringRequired = new Set(
+          (recurringProgress.assignments || [])
+            .map((a) => a.user_id)
+            .filter(Boolean)
+        )
+        const recurringApprovalByDay = {}
+        ; (recurringProgress.approvals || []).forEach((row) => {
+          if (!recurringApprovalByDay[row.weekday]) recurringApprovalByDay[row.weekday] = new Set()
+          if (row.owner_id) recurringApprovalByDay[row.weekday].add(row.owner_id)
+        })
+
+        for (let weekday = 1; weekday <= 5; weekday++) {
+          const approvedSet = recurringApprovalByDay[weekday] || new Set()
+          const approvedCount = [...approvedSet].filter((id) => recurringRequired.has(id)).length
+          const requiredCount = recurringRequired.size
+          recurringProgressMap[weekday] = {
+            approvedCount,
+            requiredCount,
+            isFullyReleased: requiredCount > 0 && approvedCount >= requiredCount,
+          }
         }
       }
       setRecurringProgressByWeekday(recurringProgressMap)
@@ -184,70 +194,82 @@ export default function OwnerCalendar({ user }) {
 
     setActionLoading(date)
 
-    // Weekday of this date
-    const weekdayNum = getWeekdayNumber(date)
-    const isRecurring = !!recurringDays[weekdayNum]
-    const isPermanent = mySpot?.is_permanently_released === true
-    const effectivelyFree = !!releasedDates[date] || (isRecurring && !isPast(date)) || isPermanent
+    try {
+      // Weekday of this date (Kalender zeigt nur Mo–Fr)
+      const weekdayNum = getWeekdayNumber(date)
+      const isRecurring = !!recurringDays[weekdayNum]
+      const isPermanent = mySpot?.is_permanently_released === true
+      // Nur im sichtbaren Monat klickbar; Logik wie in der Zellen-Darstellung
+      const inMonth = isInMonth(date, currentYear, currentMonth)
+      const effectivelyFree =
+        !!releasedDates[date]
+        || (isRecurring && inMonth && !isPast(date))
+        || (isPermanent && inMonth && !isPast(date))
 
-    if (blockedDates[date]) {
-      // Currently blocked → unblock (restore to recurring/permanent free)
-      const removedBlock = blockedDates[date]
-      setBlockedDates((prev) => {
-        const next = { ...prev }
-        delete next[date]
-        return next
-      })
-      const { error } = await unblockSpot(removedBlock.id)
-      if (error) {
-        setBlockedDates((prev) => ({ ...prev, [date]: removedBlock }))
-      }
-    } else if (releasedDates[date]) {
-      // Explicitly released → re-occupy
-      if (reservedDates.has(date)) {
-        alert("Dieser Tag ist bereits von einem Kollegen gebucht und kann nicht zurückgenommen werden.")
-        setActionLoading(null)
-        return
-      }
-      const removedAvail = releasedDates[date]
-      setReleasedDates((prev) => {
-        const next = { ...prev }
-        delete next[date]
-        return next
-      })
-      const { error } = await unreleaseSpot(removedAvail.id)
-      if (error) {
-        setReleasedDates((prev) => ({ ...prev, [date]: removedAvail }))
-      }
-    } else if (effectivelyFree) {
-      // Day is free via recurring/permanent but NOT explicitly released → block it
-      setBlockedDates((prev) => ({ ...prev, [date]: { id: "optimistic", date } }))
-      const { data, error } = await blockSpot(mySpot.id, user.id, date)
-      if (error) {
+      if (blockedDates[date]) {
+        // Gesperrt → entsperren
+        const removedBlock = blockedDates[date]
         setBlockedDates((prev) => {
           const next = { ...prev }
           delete next[date]
           return next
         })
-      } else if (data) {
-        setBlockedDates((prev) => ({ ...prev, [date]: data }))
-      }
-    } else {
-      // Occupied (default) → release
-      setReleasedDates((prev) => ({ ...prev, [date]: { id: "optimistic", date } }))
-      const { data, error } = await releaseSpot(mySpot.id, user.id, date)
-      if (error) {
+        const { error } = await unblockSpot(removedBlock.id)
+        if (error) {
+          setBlockedDates((prev) => ({ ...prev, [date]: removedBlock }))
+          alert(error.message || "Entsperren fehlgeschlagen")
+        }
+      } else if (releasedDates[date]) {
+        // Eigene Tagesfreigabe zurücknehmen
+        if (reservedDates.has(date)) {
+          alert("Dieser Tag ist bereits von einem Kollegen gebucht und kann nicht zurückgenommen werden.")
+          return
+        }
+        const removedAvail = releasedDates[date]
         setReleasedDates((prev) => {
           const next = { ...prev }
           delete next[date]
           return next
         })
-      } else if (data) {
-        setReleasedDates((prev) => ({ ...prev, [date]: data }))
+        const { error } = await unreleaseSpot(removedAvail.id)
+        if (error) {
+          setReleasedDates((prev) => ({ ...prev, [date]: removedAvail }))
+          alert(error.message || "Freigabe konnte nicht zurückgenommen werden")
+        }
+      } else if (effectivelyFree) {
+        // Per Wochenrhythmus/Dauer frei, aber nicht explizit: für diesen Tag sperren
+        setBlockedDates((prev) => ({ ...prev, [date]: { id: "optimistic", date } }))
+        const { data, error } = await blockSpot(mySpot.id, user.id, date)
+        if (error) {
+          setBlockedDates((prev) => {
+            const next = { ...prev }
+            delete next[date]
+            return next
+          })
+          alert(error.message || "Sperren fehlgeschlagen")
+        } else if (data) {
+          setBlockedDates((prev) => ({ ...prev, [date]: data }))
+        }
+      } else {
+        // Besetzt → eigene Freigabe setzen
+        setReleasedDates((prev) => ({ ...prev, [date]: { id: "optimistic", date } }))
+        const { data, error } = await releaseSpot(mySpot.id, user.id, date)
+        if (error) {
+          setReleasedDates((prev) => {
+            const next = { ...prev }
+            delete next[date]
+            return next
+          })
+          alert(error.message || "Freigabe fehlgeschlagen")
+        } else if (data) {
+          setReleasedDates((prev) => ({ ...prev, [date]: data }))
+        }
       }
+    } finally {
+      // Fortschritt x/y und Reservierungs-Flags mit Server abgleichen
+      await loadData(false)
+      setActionLoading(null)
     }
-
-    setActionLoading(null)
   }
 
   // ─── Toggle a recurring weekday (1=Mo … 5=Fr) ────────────────
@@ -257,40 +279,39 @@ export default function OwnerCalendar({ user }) {
 
     setRecurringLoading(weekday)
 
-    if (recurringDays[weekday]) {
-      // Currently active → deactivate
-      const removed = recurringDays[weekday]
-      // Optimistic
-      setRecurringDays((prev) => {
-        const next = { ...prev }
-        delete next[weekday]
-        return next
-      })
-
-      const { error } = await removeRecurringAvailability(removed.id)
-      if (error) {
-        // Revert
-        setRecurringDays((prev) => ({ ...prev, [weekday]: removed }))
-      }
-    } else {
-      // Currently inactive → activate
-      // Optimistic placeholder
-      setRecurringDays((prev) => ({ ...prev, [weekday]: { id: "optimistic", weekday } }))
-
-      const { data, error } = await addRecurringAvailability(mySpot.id, user.id, weekday)
-      if (error) {
-        // Revert
+    try {
+      if (recurringDays[weekday]) {
+        const removed = recurringDays[weekday]
         setRecurringDays((prev) => {
           const next = { ...prev }
           delete next[weekday]
           return next
         })
-      } else if (data) {
-        setRecurringDays((prev) => ({ ...prev, [weekday]: data }))
-      }
-    }
 
-    setRecurringLoading(null)
+        const { error } = await removeRecurringAvailability(removed.id)
+        if (error) {
+          setRecurringDays((prev) => ({ ...prev, [weekday]: removed }))
+          alert(error.message || "Wochentag konnte nicht deaktiviert werden")
+        }
+      } else {
+        setRecurringDays((prev) => ({ ...prev, [weekday]: { id: "optimistic", weekday } }))
+
+        const { data, error } = await addRecurringAvailability(mySpot.id, user.id, weekday)
+        if (error) {
+          setRecurringDays((prev) => {
+            const next = { ...prev }
+            delete next[weekday]
+            return next
+          })
+          alert(error.message || "Wochentag konnte nicht aktiviert werden")
+        } else if (data) {
+          setRecurringDays((prev) => ({ ...prev, [weekday]: data }))
+        }
+      }
+    } finally {
+      await loadData(false)
+      setRecurringLoading(null)
+    }
   }
 
   function prevMonth() {
