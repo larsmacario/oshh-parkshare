@@ -21,10 +21,10 @@ import {
   deleteUserByAdmin,
   updateUserRoleByAdmin,
   updateUserByAdmin,
-  releaseSpotsMultiple,
+  releaseSpotDatesForAllOwners,
   getRecurringAvailabilitiesForSpots,
-  addRecurringAvailability,
-  removeRecurringAvailability,
+  upsertRecurringWeekdayForAllOwners,
+  deleteRecurringWeekdayForSpot,
   getSpotUsageStats,
 } from "@/lib/supabase"
 import { getToday } from "@/lib/dates"
@@ -141,7 +141,6 @@ export default function AdminPanel({ user }) {
             )}
             {tab === "spots" && (
               <SpotsTab
-                user={user}
                 spots={spots}
                 assignments={assignments}
                 todayAvailable={todayAvailable}
@@ -352,7 +351,15 @@ function OverviewTab({ stats, todayReservations, todayAvailable }) {
 
 // ─── Spots Tab ──────────────────────────────────────────────────
 
-function SpotsTab({ user, spots, assignments, todayAvailable, profiles, onRefresh }) {
+/** Wiederkehrend: alle zugewiesenen Inhaber haben eine Zeile für diesen Wochentag */
+function recurringWeekdayComplete(assignments, rows) {
+  const needed = new Set((assignments || []).map((a) => a.user?.id).filter(Boolean))
+  if (needed.size === 0) return false
+  const have = new Set((rows || []).map((r) => r.owner_id))
+  return [...needed].every((id) => have.has(id))
+}
+
+function SpotsTab({ spots, assignments, todayAvailable, profiles, onRefresh }) {
   const WEEKDAYS = [
     { value: 1, label: "Mo" },
     { value: 2, label: "Di" },
@@ -382,7 +389,8 @@ function SpotsTab({ user, spots, assignments, todayAvailable, profiles, onRefres
       const map = {}
       ; (data || []).forEach((row) => {
         if (!map[row.spot_id]) map[row.spot_id] = {}
-        map[row.spot_id][row.weekday] = row
+        if (!map[row.spot_id][row.weekday]) map[row.spot_id][row.weekday] = []
+        map[row.spot_id][row.weekday].push(row)
       })
       setRecurringBySpot(map)
     }
@@ -436,66 +444,40 @@ function SpotsTab({ user, spots, assignments, todayAvailable, profiles, onRefres
   async function handleReleaseToday(spotId) {
     const today = getToday()
     setReleasingTodaySpotId(spotId)
-    await releaseSpotsMultiple(spotId, user.id, [today])
-    setReleasingTodaySpotId(null)
-    await onRefresh(true)
+    try {
+      const { error } = await releaseSpotDatesForAllOwners(spotId, [today])
+      if (error?.message) alert(error.message)
+      await onRefresh(true)
+    } finally {
+      setReleasingTodaySpotId(null)
+    }
   }
 
-  async function handleToggleRecurring(spotId, weekday, ownerId = null) {
+  async function handleToggleRecurring(spotId, weekday) {
     const key = `${spotId}-${weekday}`
     if (recurringLoadingKeys[key]) return
 
-    const current = recurringBySpot[spotId]?.[weekday] || null
-    setRecurringLoadingKeys((prev) => ({ ...prev, [key]: true }))
+    const spotAssignments = assignmentsBySpot[spotId] || []
+    const rows = recurringBySpot[spotId]?.[weekday] || []
+    const isFullyActive = recurringWeekdayComplete(spotAssignments, rows)
 
-    if (current) {
-      // Optimistic OFF
-      setRecurringBySpot((prev) => {
+    setRecurringLoadingKeys((prev) => ({ ...prev, [key]: true }))
+    try {
+      if (isFullyActive) {
+        const { error } = await deleteRecurringWeekdayForSpot(spotId, weekday)
+        if (error?.message) alert(error.message)
+      } else {
+        const { error } = await upsertRecurringWeekdayForAllOwners(spotId, weekday)
+        if (error?.message) alert(error.message)
+      }
+      await onRefresh(true)
+    } finally {
+      setRecurringLoadingKeys((prev) => {
         const next = { ...prev }
-        const spotMap = { ...(next[spotId] || {}) }
-        delete spotMap[weekday]
-        next[spotId] = spotMap
+        delete next[key]
         return next
       })
-
-      const { error } = await removeRecurringAvailability(current.id)
-      if (error) {
-        setRecurringBySpot((prev) => ({
-          ...prev,
-          [spotId]: { ...(prev[spotId] || {}), [weekday]: current },
-        }))
-      }
-    } else {
-      // Optimistic ON
-      const optimistic = { id: `optimistic-${key}`, spot_id: spotId, weekday, owner_id: user.id }
-      setRecurringBySpot((prev) => ({
-        ...prev,
-        [spotId]: { ...(prev[spotId] || {}), [weekday]: optimistic },
-      }))
-
-      const { data, error } = await addRecurringAvailability(spotId, ownerId || user.id, weekday)
-      if (error) {
-        setRecurringBySpot((prev) => {
-          const next = { ...prev }
-          const spotMap = { ...(next[spotId] || {}) }
-          delete spotMap[weekday]
-          next[spotId] = spotMap
-          return next
-        })
-      } else if (data) {
-        setRecurringBySpot((prev) => ({
-          ...prev,
-          [spotId]: { ...(prev[spotId] || {}), [weekday]: data },
-        }))
-      }
     }
-
-    setRecurringLoadingKeys((prev) => {
-      const next = { ...prev }
-      delete next[key]
-      return next
-    })
-    await onRefresh(true)
   }
 
   async function handleAddOwner(spotId, userId) {
@@ -666,14 +648,14 @@ function SpotsTab({ user, spots, assignments, todayAvailable, profiles, onRefres
                   </p>
                   <div className="grid grid-cols-5 gap-1.5">
                     {WEEKDAYS.map((day) => {
-                      const isActive = !!recurringBySpot[spot.id]?.[day.value]
+                      const recurRows = recurringBySpot[spot.id]?.[day.value] || []
+                      const isActive = recurringWeekdayComplete(spotAssignments, recurRows)
                       const key = `${spot.id}-${day.value}`
                       const isLoadingDay = !!recurringLoadingKeys[key]
-                      const primaryOwnerId = spotAssignments[0]?.user?.id || null
                       return (
                         <button
                           key={day.value}
-                          onClick={() => handleToggleRecurring(spot.id, day.value, primaryOwnerId)}
+                          onClick={() => handleToggleRecurring(spot.id, day.value)}
                           disabled={isLoadingDay}
                           className={`h-9 rounded-xl border-2 text-[10px] font-display font-bold uppercase tracking-widest transition-all ${isActive
                             ? "bg-orendt-black border-orendt-black text-orendt-white"
