@@ -19,6 +19,7 @@ export default function LoginPage() {
 
   const [isForgotPasswordMode, setIsForgotPasswordMode] = useState(false)
   const [isOtpResetMode, setIsOtpResetMode] = useState(false)
+  const [isMustChangePasswordMode, setIsMustChangePasswordMode] = useState(false)
   const [otpCode, setOtpCode] = useState("")
   const [otpNewPassword, setOtpNewPassword] = useState("")
   const [otpConfirmPassword, setOtpConfirmPassword] = useState("")
@@ -36,6 +37,10 @@ export default function LoginPage() {
 
   async function handleSubmit(e) {
     e.preventDefault()
+    if (isMustChangePasswordMode) {
+      await handleMustChangePasswordReset()
+      return
+    }
     if (isForgotPasswordMode) {
       if (isOtpResetMode) {
         await handleOtpPasswordReset()
@@ -74,7 +79,8 @@ export default function LoginPage() {
 
         // Check if user must change password
         if (profile?.must_change_password) {
-          await triggerOtpReset((email || "").trim().toLowerCase())
+          setIsMustChangePasswordMode(true)
+          setSuccessMessage("Erster Login: Bitte lege ein neues Passwort für dein Konto fest.")
           setLoading(false)
           return
         }
@@ -164,6 +170,43 @@ export default function LoginPage() {
     }
   }
 
+  async function handleMustChangePasswordReset() {
+    setError("")
+    setSuccessMessage("")
+
+    if (otpNewPassword.length < 6) {
+      setError("Das Passwort muss mindestens 6 Zeichen lang sein.")
+      return
+    }
+    if (otpNewPassword !== otpConfirmPassword) {
+      setError("Die Passwörter stimmen nicht überein.")
+      return
+    }
+
+    setLoading(true)
+    try {
+      const { error: pwError } = await updatePassword(otpNewPassword)
+      if (pwError) throw pwError
+
+      const profile = await getCurrentUser()
+      if (profile?.id) {
+        const { error: markError } = await markPasswordChanged(profile.id)
+        if (markError) throw markError
+      }
+
+      setIsMustChangePasswordMode(false)
+      setOtpNewPassword("")
+      setOtpConfirmPassword("")
+      setPassword("")
+      setSuccessMessage("Dein Passwort wurde erfolgreich aktualisiert!")
+      router.push("/dashboard")
+    } catch (err) {
+      setError(err.message || "Fehler beim Aktualisieren des Passworts.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
   function openForgotPasswordMode() {
     setIsSignUp(false)
     setIsForgotPasswordMode(true)
@@ -231,21 +274,23 @@ export default function LoginPage() {
                 </div>
               )}
 
-              <div>
-                <label className="block text-[9px] sm:text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-[0.2em] mb-2 sm:mb-3 ml-1">
-                  E-Mail
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@orendtstudios.com"
-                  required
-                  className="w-full px-5 py-3.5 sm:px-6 sm:py-4 bg-orendt-gray-50 border border-orendt-gray-100 rounded-2xl text-orendt-black font-body text-base placeholder:text-orendt-gray-300 focus:border-orendt-black focus:ring-4 focus:ring-orendt-black/5 transition-all outline-none"
-                />
-              </div>
+              {!isMustChangePasswordMode && (
+                <div>
+                  <label className="block text-[9px] sm:text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-[0.2em] mb-2 sm:mb-3 ml-1">
+                    E-Mail
+                  </label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@orendtstudios.com"
+                    required
+                    className="w-full px-5 py-3.5 sm:px-6 sm:py-4 bg-orendt-gray-50 border border-orendt-gray-100 rounded-2xl text-orendt-black font-body text-base placeholder:text-orendt-gray-300 focus:border-orendt-black focus:ring-4 focus:ring-orendt-black/5 transition-all outline-none"
+                  />
+                </div>
+              )}
 
-              {!isForgotPasswordMode && (
+              {!isForgotPasswordMode && !isMustChangePasswordMode && (
                 <div>
                   <label className="block text-[9px] sm:text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-[0.2em] mb-2 sm:mb-3 ml-1">
                     Passwort
@@ -255,28 +300,30 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    required={!isForgotPasswordMode}
+                    required={!isForgotPasswordMode && !isMustChangePasswordMode}
                     minLength={6}
                     className="w-full px-5 py-3.5 sm:px-6 sm:py-4 bg-orendt-gray-50 border border-orendt-gray-100 rounded-2xl text-orendt-black font-body text-base placeholder:text-orendt-gray-300 focus:border-orendt-black focus:ring-4 focus:ring-orendt-black/5 transition-all outline-none"
                   />
                 </div>
               )}
 
-              {isForgotPasswordMode && isOtpResetMode && (
+              {((isForgotPasswordMode && isOtpResetMode) || isMustChangePasswordMode) && (
                 <>
-                  <div className="animate-fade-in">
-                    <label className="block text-[9px] sm:text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-[0.2em] mb-2 sm:mb-3 ml-1">
-                      Sicherheitscode
-                    </label>
-                    <input
-                      type="text"
-                      value={otpCode}
-                      onChange={(e) => setOtpCode(e.target.value)}
-                      placeholder="Code aus der E-Mail"
-                      required
-                      className="w-full px-5 py-3.5 sm:px-6 sm:py-4 bg-orendt-gray-50 border border-orendt-gray-100 rounded-2xl text-orendt-black font-body text-base placeholder:text-orendt-gray-300 focus:border-orendt-black focus:ring-4 focus:ring-orendt-black/5 transition-all outline-none"
-                    />
-                  </div>
+                  {!isMustChangePasswordMode && (
+                    <div className="animate-fade-in">
+                      <label className="block text-[9px] sm:text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-[0.2em] mb-2 sm:mb-3 ml-1">
+                        Sicherheitscode
+                      </label>
+                      <input
+                        type="text"
+                        value={otpCode}
+                        onChange={(e) => setOtpCode(e.target.value)}
+                        placeholder="Code aus der E-Mail"
+                        required
+                        className="w-full px-5 py-3.5 sm:px-6 sm:py-4 bg-orendt-gray-50 border border-orendt-gray-100 rounded-2xl text-orendt-black font-body text-base placeholder:text-orendt-gray-300 focus:border-orendt-black focus:ring-4 focus:ring-orendt-black/5 transition-all outline-none"
+                      />
+                    </div>
+                  )}
 
                   <div className="animate-fade-in">
                     <label className="block text-[9px] sm:text-[10px] font-display font-bold text-orendt-gray-400 uppercase tracking-[0.2em] mb-2 sm:mb-3 ml-1">
@@ -362,7 +409,7 @@ export default function LoginPage() {
                 </div>
               )}
 
-              {!isSignUp && !isForgotPasswordMode && (
+              {!isSignUp && !isForgotPasswordMode && !isMustChangePasswordMode && (
                 <button
                   type="button"
                   onClick={openForgotPasswordMode}
@@ -373,10 +420,19 @@ export default function LoginPage() {
                 </button>
               )}
 
-              {isForgotPasswordMode && (
+              {(isForgotPasswordMode || isMustChangePasswordMode) && (
                 <button
                   type="button"
-                  onClick={closeForgotPasswordMode}
+                  onClick={async () => {
+                    if (isMustChangePasswordMode) {
+                      await signOut()
+                      setIsMustChangePasswordMode(false)
+                      setError("")
+                      setSuccessMessage("")
+                    } else {
+                      closeForgotPasswordMode()
+                    }
+                  }}
                   disabled={loading}
                   className="w-full text-right text-[10px] sm:text-[11px] font-display font-bold uppercase tracking-[0.22em] text-orendt-gray-400 hover:text-orendt-black transition-colors disabled:opacity-50"
                 >
@@ -394,21 +450,23 @@ export default function LoginPage() {
                     <span className="w-4 h-4 border-2 border-orendt-white/20 border-t-orendt-white rounded-full animate-spin" />
                     Authentication...
                   </span>
-                ) : isForgotPasswordMode
-                  ? isOtpResetMode
-                    ? "Passwort zurücksetzen"
-                    : "Code senden"
-                  : isSignUp
-                    ? "Konto erstellen"
-                    : "Anmelden"}
+                ) : isMustChangePasswordMode
+                  ? "Neues Passwort festlegen"
+                  : isForgotPasswordMode
+                    ? isOtpResetMode
+                      ? "Passwort zurücksetzen"
+                      : "Code senden"
+                    : isSignUp
+                      ? "Konto erstellen"
+                      : "Anmelden"}
               </button>
             </form>
 
             <div className="mt-8 sm:mt-10 text-center border-t border-orendt-gray-50 pt-6 sm:pt-8">
               <button
                 onClick={() => { setIsSignUp(!isSignUp); setError("") }}
-                disabled={isForgotPasswordMode}
-                className="text-orendt-gray-400 hover:text-orendt-black text-[10px] sm:text-[11px] font-display font-bold uppercase tracking-[0.3em] transition-colors"
+                disabled={isForgotPasswordMode || isMustChangePasswordMode}
+                className="text-orendt-gray-400 hover:text-orendt-black text-[10px] sm:text-[11px] font-display font-bold uppercase tracking-[0.3em] transition-colors disabled:opacity-30"
               >
                 {isSignUp ? "Already registered?" : "New here? Register"}
               </button>

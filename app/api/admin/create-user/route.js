@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
+import { sendWelcomeEmail } from "@/lib/mail"
 
 // Lazy-initialized clients — avoids build-time error when env vars are missing
 function getAdminClient() {
@@ -69,6 +70,19 @@ export async function POST(request) {
 
         if (createError) {
             return NextResponse.json({ error: createError.message }, { status: 400 })
+        }
+
+        // Send welcome email via SMTP (using the default password)
+        try {
+            await sendWelcomeEmail(email, fullName, defaultPassword)
+        } catch (mailError) {
+            console.error("Failed to send welcome email via SMTP:", mailError)
+            // Rollback user creation to prevent orphaned accounts with unknown/inaccessible passwords
+            await supabaseAdmin.auth.admin.deleteUser(newUser.user.id)
+            return NextResponse.json(
+                { error: "Mitarbeiter konnte nicht angelegt werden, da der SMTP-E-Mail-Versand fehlgeschlagen ist. Bitte überprüfe die SMTP-Konfiguration." },
+                { status: 500 }
+            )
         }
 
         // 5. Set must_change_password = true in profiles

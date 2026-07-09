@@ -726,7 +726,7 @@ function UsersTab({ profiles, onRefresh }) {
       const { data: { session } } = await getSession()
       await createUserViaAdmin(newUser.email, newUser.fullName, newUser.role, session.access_token)
       setNewUser({ email: "", fullName: "", role: "flexible" })
-      alert("Mitarbeiter erfolgreich angelegt! Er kann sich mit dem Default-Passwort einloggen.")
+      alert("Mitarbeiter erfolgreich angelegt! Eine Willkommens-E-Mail mit den Zugangsdaten wurde gesendet.")
       await onRefresh(true)
     } catch (err) { alert(err.message) }
     setAddingUser(false)
