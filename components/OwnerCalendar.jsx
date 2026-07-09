@@ -519,11 +519,7 @@ export default function OwnerCalendar({ user }) {
           <span className="text-[9px] sm:text-[10px] font-display font-bold text-orendt-gray-400">↻</span>
           <span className="text-[9px] sm:text-[10px] font-display font-bold uppercase tracking-wider text-orendt-gray-400">Dauerhaft frei</span>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-orange-400 border border-black/5" />
-          <span className="text-[9px] sm:text-[10px] font-display font-bold uppercase tracking-wider text-orendt-gray-400">Gesperrt</span>
-        </div>
-        <div className="flex items-center gap-2">
+         <div className="flex items-center gap-2">
           <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-amber-400 border border-black/5" />
           <span className="text-[9px] sm:text-[10px] font-display font-bold uppercase tracking-wider text-orendt-gray-400">Warten auf Co-Owner</span>
         </div>
@@ -572,7 +568,7 @@ export default function OwnerCalendar({ user }) {
                     className={`
                       relative group py-4 sm:py-6 px-1 sm:px-2 text-center transition-all duration-300 border-r border-orendt-gray-50 last:border-0
                       ${!inMonth ? "opacity-15 cursor-default" : past ? "opacity-25 cursor-not-allowed" : "cursor-pointer hover:bg-white active:scale-95"}
-                      ${reserved ? "bg-status-reserved/5" : blocked ? "bg-orange-50" : effectivelyFree ? "bg-orendt-accent/5" : waitingForOthers ? "bg-amber-50" : "bg-transparent"}
+                      ${reserved ? "bg-status-reserved/5" : blocked ? "bg-transparent" : effectivelyFree ? "bg-orendt-accent/5" : waitingForOthers ? "bg-amber-50" : "bg-transparent"}
                     `}
                   >
                     {todayDate && (
@@ -595,12 +591,6 @@ export default function OwnerCalendar({ user }) {
                       </div>
                     )}
 
-                    {/* Blocked indicator */}
-                    {blocked && inMonth && !past && (
-                      <div className="absolute top-1 sm:top-1.5 right-1 sm:right-1.5 text-[8px] text-orange-400 font-bold leading-none">
-                        ✕
-                      </div>
-                    )}
                     {waitingForOthers && (
                       <div className="absolute top-1 sm:top-1.5 right-1 sm:right-1.5 text-[8px] text-amber-500 font-bold leading-none">
                         …
@@ -616,9 +606,9 @@ export default function OwnerCalendar({ user }) {
 
                     <span className={`
                       block text-[7px] sm:text-[9px] font-display font-bold uppercase tracking-widest leading-tight
-                      ${!inMonth ? "text-transparent" : reserved ? "text-amber-600" : blocked ? "text-orange-500" : waitingForOthers ? "text-amber-600" : released ? "text-green-600" : (isRecurring || isPermanent) && !past ? "text-green-500" : past ? "text-transparent" : "text-orendt-gray-300"}
+                      ${!inMonth ? "text-transparent" : reserved ? "text-amber-600" : blocked ? "text-orendt-gray-300" : waitingForOthers ? "text-amber-600" : released ? "text-green-600" : (isRecurring || isPermanent) && !past ? "text-green-500" : past ? "text-transparent" : "text-orendt-gray-300"}
                     `}>
-                      {isLoading ? "..." : !inMonth ? "–" : reserved ? "Gebucht" : blocked ? "Gesperrt" : waitingForOthers ? "Warten" : effectivelyFree ? "Frei" : past ? "" : "Besetzt"}
+                      {isLoading ? "..." : !inMonth ? "–" : reserved ? "Gebucht" : blocked ? "Besetzt" : waitingForOthers ? "Warten" : effectivelyFree ? "Frei" : past ? "" : "Besetzt"}
                     </span>
                     {inMonth && !past && !reserved && !blocked && (progress.requiredCount > 0 || recurringProgress.requiredCount > 0) && (
                       <span className="block text-[7px] text-orendt-gray-400 font-display font-bold tracking-wide mt-0.5">
@@ -632,7 +622,7 @@ export default function OwnerCalendar({ user }) {
                     {inMonth && !past && (
                       <div className={`
                         absolute bottom-0 left-0 right-0 h-0.5 sm:h-1 transition-all duration-300
-                        ${reserved ? "bg-status-reserved" : blocked ? "bg-orange-400 opacity-60 group-hover:opacity-100" : effectivelyFree ? "bg-orendt-accent opacity-60 group-hover:opacity-100" : "opacity-0"}
+                        ${reserved ? "bg-status-reserved" : blocked ? "bg-transparent" : effectivelyFree ? "bg-orendt-accent opacity-60 group-hover:opacity-100" : "opacity-0"}
                       `} />
                     )}
                   </button>
